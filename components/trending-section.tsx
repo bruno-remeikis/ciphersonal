@@ -13,10 +13,15 @@ const typeIcon: Record<LastSeenResolved["type"], React.ReactNode> = {
 }
 
 export function TrendingSection() {
-  const { data: items, isLoading } = useSWR(
+  const { data: rawItems, isLoading } = useSWR(
     swrKeys.lastSeen,
     () => fetchLastSeen()
   )
+
+  // `rawItems` pode conter itens duplicados. Isto gera um papa de itens únicos
+  const items = rawItems
+    ? [...new Map(rawItems.map(obj => [`${obj.type}-${obj.id}`, obj])).values()]
+    : rawItems
 
   if (isLoading) {
     return (
@@ -58,13 +63,19 @@ export function TrendingSection() {
             aria-label={`${item.label} — ${item.sublabel}`}
           >
             <div className="relative w-7 h-7 rounded-full overflow-hidden shrink-0">
-              <Image
-                src={item.coverUrl}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="28px"
-              />
+              {item.coverUrl ? (
+                <Image
+                  src={item.coverUrl}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="28px"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                  <ListMusic className="w-4 h-4 text-primary/30" />
+                </div>
+              )}
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-xs font-semibold text-foreground whitespace-nowrap group-hover:text-primary transition-colors">
