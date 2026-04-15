@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Song {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  title    String
+  artists  String[]
+  genres   String[]
+  coverUrl String
+  pages    Page[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("songs")
+}
+
+type Page {
+  id      Int
+  type    String // "lyrics" | "chords"
+  title   String
+  content String
+  isMain  Boolean
+}
+
+model Artist {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  genre     String
+  songCount Int
+  avatarUrl String
+  verified  Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artists")
+}
+
+model Repertoire {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  owner       String
+  songIds     String[] @db.ObjectId
+  description String
+  coverUrl    String
+  isPublic    Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("repertoires")
+}
+
+model LastSeen {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  itemId    String   @db.ObjectId
+  type      String   // "song" | "artist" | "repertoire"
+  timestamp DateTime @default(now())
+
+  @@map("last_seen")
+}
