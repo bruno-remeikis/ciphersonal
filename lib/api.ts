@@ -21,7 +21,11 @@ export type RepertoireDetailResponse = {
   songs: Song[]
 }
 
-const BASE = typeof window === "undefined" ? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000" : ""
+// const BASE = typeof window === "undefined" ? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000" : ""
+const BASE = typeof window === "undefined"
+  ? process.env.NEXT_PUBLIC_APP_URL 
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+  : ""
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" })
