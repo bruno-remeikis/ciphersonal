@@ -199,12 +199,30 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-3xl font-bold text-foreground text-balance">{song.title}</h1>
-            <p className="text-base text-muted-foreground mt-1">{song.artists.join(", ")}</p>
+            <div className="flex flex-wrap items-center gap-x-1 mt-1">
+              {song.artists.map((artist, index) => (
+                <span key={artist} className="inline-flex items-center">
+                  <Link
+                    href={`/artistas?q=${encodeURIComponent(artist)}`}
+                    className="text-base text-muted-foreground hover:text-primary hover:underline transition-colors"
+                  >
+                    {artist}
+                  </Link>
+                  {index < song.artists.length - 1 && (
+                    <span className="text-muted-foreground">,</span>
+                  )}
+                </span>
+              ))}
+            </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {song.genres.map((g) => (
-                <span key={g} className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
+                <Link
+                  key={g}
+                  href={`/generos/${encodeURIComponent(g)}`}
+                  className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium hover:bg-primary/10 hover:text-primary transition-colors"
+                >
                   {g}
-                </span>
+                </Link>
               ))}
             </div>
             <div className="flex gap-2 mt-3">

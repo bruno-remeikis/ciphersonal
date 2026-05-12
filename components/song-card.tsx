@@ -42,10 +42,15 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
           <p className="text-xs md:text-sm text-muted-foreground truncate mt-0.5">
             {song.artists[0]}
           </p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
-              {song.genres[0]}
-            </span>
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {song.genres.map((genre) => (
+              <span
+                key={genre}
+                className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium"
+              >
+                {genre}
+              </span>
+            ))}
           </div>
         </div>
       </article>
