@@ -62,7 +62,7 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
             {repertoires.slice(0, 2).map((rep) => (
               <span
                 key={rep.id}
-                className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full"
+                className="bg-red flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full"
                 title={rep.title}
               >
                 <ListMusic className="w-3 h-3 shrink-0" />
