@@ -1,4 +1,4 @@
-import { Music } from "lucide-react"
+import { Music, ListMusic } from "lucide-react"
 import { Song } from "@/lib/api"
 import Image from "next/image"
 import Link from "next/link"
@@ -7,6 +7,8 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
   const href = repertoireId
     ? `/musicas/${song.id}?from=repertoire&repertoireId=${repertoireId}`
     : `/musicas/${song.id}`
+
+  const hasRepertoires = song.repertoires && song.repertoires.length > 0
 
   return (
     <Link href={href}>
@@ -51,6 +53,16 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
                 {genre}
               </span>
             ))}
+            {hasRepertoires && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={song.repertoires!.map(r => r.title).join(", ")}>
+                <ListMusic className="w-3 h-3" />
+                <span className="truncate max-w-[100px]">
+                  {song.repertoires!.length === 1
+                    ? song.repertoires![0].title
+                    : `${song.repertoires!.length} repertórios`}
+                </span>
+              </span>
+            )}
           </div>
         </div>
       </article>

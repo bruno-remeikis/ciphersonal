@@ -7,6 +7,11 @@ export type Page = {
   isMain: boolean
 }
 
+export type SongRepertoire = {
+  id: string
+  title: string
+}
+
 export type Song = {
   id: string
   title: string
@@ -14,6 +19,7 @@ export type Song = {
   genres: string[]
   coverUrl: string
   pages: Page[]
+  repertoires?: SongRepertoire[]
   createdAt?: Date
   updatedAt?: Date
 }

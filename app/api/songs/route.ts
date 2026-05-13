@@ -7,22 +7,41 @@ export async function GET(request: NextRequest) {
   const genre = searchParams.get("genre") ?? ""
 
   try {
-    const songs = await prisma.song.findMany({
-      orderBy: { createdAt: "desc" },
-    })
+    const [songs, repertoires] = await Promise.all([
+      prisma.song.findMany({
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.repertoire.findMany({
+        select: { id: true, title: true, songIds: true },
+      }),
+    ])
 
-    let filtered = songs
+    // Mapear songId -> lista de repertórios
+    const songRepertoiresMap = new Map<string, { id: string; title: string }[]>()
+    for (const rep of repertoires) {
+      for (const songId of rep.songIds) {
+        const existing = songRepertoiresMap.get(songId) || []
+        existing.push({ id: rep.id, title: rep.title })
+        songRepertoiresMap.set(songId, existing)
+      }
+    }
+
+    // Adicionar repertórios às músicas
+    let enrichedSongs = songs.map((song) => ({
+      ...song,
+      repertoires: songRepertoiresMap.get(song.id) || [],
+    }))
 
     // Filtrar por gênero se especificado
     if (genre) {
-      filtered = filtered.filter((s) =>
+      enrichedSongs = enrichedSongs.filter((s) =>
         s.genres.some((g: string) => g.toLowerCase() === genre.toLowerCase())
       )
     }
 
     // Filtrar por query de pesquisa
     if (q) {
-      filtered = filtered.filter(
+      enrichedSongs = enrichedSongs.filter(
         (s) =>
           s.title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) ||
           s.artists.some((a: string) =>
@@ -34,7 +53,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(filtered)
+    return NextResponse.json(enrichedSongs)
   } catch (error) {
     console.error("Error fetching songs:", error)
     return NextResponse.json({ error: "Failed to fetch songs" }, { status: 500 })
