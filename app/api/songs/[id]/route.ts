@@ -8,15 +8,24 @@ export async function GET(
   const { id } = await params
   
   try {
-    const song = await prisma.song.findUnique({
-      where: { id },
-    })
+    const [song, repertoires] = await Promise.all([
+      prisma.song.findUnique({
+        where: { id },
+      }),
+      prisma.repertoire.findMany({
+        where: { songIds: { has: id } },
+        select: { id: true, title: true },
+      }),
+    ])
     
     if (!song) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
     
-    return NextResponse.json(song)
+    return NextResponse.json({
+      ...song,
+      repertoires,
+    })
   } catch (error) {
     console.error("Error fetching song:", error)
     return NextResponse.json({ error: "Invalid ID format" }, { status: 400 })

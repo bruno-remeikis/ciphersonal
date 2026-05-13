@@ -2,6 +2,11 @@ import type { Song, Artist, Repertoire, Page } from "@/lib/data"
 
 export type { Song, Artist, Repertoire, Page }
 
+export type Genre = {
+  name: string
+  songCount: number
+}
+
 export type LastSeenResolved = {
   id: string
   type: "song" | "artist" | "repertoire"
@@ -57,6 +62,19 @@ export function fetchArtistDetail(id: string): Promise<ArtistDetailResponse> {
 export function fetchRepertoires(query?: string): Promise<Repertoire[]> {
   const qs = query ? `?q=${encodeURIComponent(query)}` : ""
   return apiFetch<Repertoire[]>(`/api/repertoires${qs}`)
+}
+
+// Genres
+export function fetchGenres(query?: string): Promise<Genre[]> {
+  const qs = query ? `?q=${encodeURIComponent(query)}` : ""
+  return apiFetch<Genre[]>(`/api/genres${qs}`)
+}
+
+export function fetchSongsByGenre(genre: string, query?: string): Promise<Song[]> {
+  const params = new URLSearchParams()
+  params.set("genre", genre)
+  if (query) params.set("q", query)
+  return apiFetch<Song[]>(`/api/songs?${params.toString()}`)
 }
 
 export function fetchRepertoireDetail(id: string): Promise<RepertoireDetailResponse> {
@@ -200,6 +218,8 @@ export const swrKeys = {
   songs: (q?: string) => ["/api/songs", q] as const,
   artists: (q?: string) => ["/api/artists", q] as const,
   repertoires: (q?: string) => ["/api/repertoires", q] as const,
+  genres: (q?: string) => ["/api/genres", q] as const,
+  songsByGenre: (genre: string, q?: string) => ["/api/songs", genre, q] as const,
   lastSeen: ["/api/last-seen"] as const,
   song: (id: string) => [`/api/songs/${id}`] as const,
   artistDetail: (id: string) => [`/api/artists/${id}`] as const,

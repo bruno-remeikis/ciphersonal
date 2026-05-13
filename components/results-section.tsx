@@ -1,19 +1,18 @@
 "use client"
 
-import { useState } from "react"
 import useSWR from "swr"
 import { SongCard } from "@/components/song-card"
 import { ArtistCard } from "@/components/artist-card"
 import { RepertoireCard } from "@/components/repertoire-card"
-import { Pagination } from "@/components/pagination"
-import { fetchSongs, fetchArtists, fetchRepertoires, swrKeys } from "@/lib/api"
-import type { Song, Artist, Repertoire } from "@/lib/api"
+import { GenreCard } from "@/components/genre-card"
+import { fetchSongs, fetchArtists, fetchRepertoires, fetchGenres, swrKeys } from "@/lib/api"
+import type { Song, Artist, Repertoire, Genre } from "@/lib/api"
 import { FilterType } from "@/components/search-bar"
-import { Music2, Users, ListMusic, SearchX, PlusCircle, Loader2 } from "lucide-react"
+import { Music2, Users, ListMusic, Tag, SearchX, PlusCircle, Loader2, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
-const PAGE_SIZE = 6
+const PREVIEW_SIZE = 6
 
 type ResultsSectionProps = {
   query: string
@@ -21,13 +20,10 @@ type ResultsSectionProps = {
 }
 
 export function ResultsSection({ query, filter }: ResultsSectionProps) {
-  const [songPage, setSongPage] = useState(1)
-  const [artistPage, setArtistPage] = useState(1)
-  const [repertoirePage, setRepertoirePage] = useState(1)
-
   const showSongs = filter === "todos" || filter === "musicas"
   const showArtists = filter === "todos" || filter === "artistas"
   const showRepertoires = filter === "todos" || filter === "repertorios"
+  const showGenres = filter === "todos" || filter === "generos"
 
   const { data: songs, isLoading: loadingSongs } = useSWR(
     showSongs ? swrKeys.songs(query) : null,
@@ -44,10 +40,16 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
     () => fetchRepertoires(query)
   )
 
+  const { data: genres, isLoading: loadingGenres } = useSWR(
+    showGenres ? swrKeys.genres(query) : null,
+    () => fetchGenres(query)
+  )
+
   const isLoading =
     (showSongs && loadingSongs) ||
     (showArtists && loadingArtists) ||
-    (showRepertoires && loadingRepertoires)
+    (showRepertoires && loadingRepertoires) ||
+    (showGenres && loadingGenres)
 
   if (isLoading) {
     return (
@@ -61,20 +63,19 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
   const filteredSongs: Song[] = songs ?? []
   const filteredArtists: Artist[] = artists ?? []
   const filteredRepertoires: Repertoire[] = repertoires ?? []
+  const filteredGenres: Genre[] = genres ?? []
 
   const hasResults =
     (showSongs && filteredSongs.length > 0) ||
     (showArtists && filteredArtists.length > 0) ||
-    (showRepertoires && filteredRepertoires.length > 0)
+    (showRepertoires && filteredRepertoires.length > 0) ||
+    (showGenres && filteredGenres.length > 0)
 
-  // Paginação
-  const pagedSongs = filteredSongs.slice((songPage - 1) * PAGE_SIZE, songPage * PAGE_SIZE)
-  const pagedArtists = filteredArtists.slice((artistPage - 1) * PAGE_SIZE, artistPage * PAGE_SIZE)
-  const pagedRepertoires = filteredRepertoires.slice((repertoirePage - 1) * PAGE_SIZE, repertoirePage * PAGE_SIZE)
-
-  const songTotalPages = Math.ceil(filteredSongs.length / PAGE_SIZE)
-  const artistTotalPages = Math.ceil(filteredArtists.length / PAGE_SIZE)
-  const repertoireTotalPages = Math.ceil(filteredRepertoires.length / PAGE_SIZE)
+  // Apenas os primeiros 6 itens de cada categoria
+  const previewSongs = filteredSongs.slice(0, PREVIEW_SIZE)
+  const previewArtists = filteredArtists.slice(0, PREVIEW_SIZE)
+  const previewRepertoires = filteredRepertoires.slice(0, PREVIEW_SIZE)
+  const previewGenres = filteredGenres.slice(0, PREVIEW_SIZE)
 
   if (!hasResults) {
     return (
@@ -82,33 +83,45 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
         <SearchX className="w-12 h-12 text-muted-foreground" />
         <h2 className="text-lg font-semibold text-foreground">Nenhum resultado encontrado</h2>
         <p className="text-sm text-muted-foreground max-w-sm text-pretty">
-          Tente buscar por outro nome, artista ou gênero musical.
+          Tente buscar por outro nome, artista ou genero musical.
         </p>
       </section>
     )
   }
 
+  // Criar URL com query de pesquisa
+  const buildViewAllUrl = (basePath: string) => {
+    return query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath
+  }
+
   return (
     <main className="max-w-7xl mx-auto px-4 py-8 flex flex-col gap-10" aria-live="polite">
-      {/* Músicas */}
+      {/* Musicas */}
       {showSongs && filteredSongs.length > 0 && (
         <section aria-labelledby="songs-heading">
           <SectionHeader
             icon={<Music2 className="w-5 h-5" />}
-            title="Músicas"
+            title="Musicas"
             count={filteredSongs.length}
             addHref="/novo?tipo=musica"
+            viewAllHref={buildViewAllUrl("/musicas")}
+            hasMore={filteredSongs.length > PREVIEW_SIZE}
           />
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pagedSongs.map((song) => (
+            {previewSongs.map((song) => (
               <SongCard key={song.id} song={song} />
             ))}
           </div>
-          <Pagination
-            currentPage={songPage}
-            totalPages={songTotalPages}
-            onPageChange={(p) => setSongPage(p)}
-          />
+          {filteredSongs.length > PREVIEW_SIZE && (
+            <div className="mt-4 flex justify-center">
+              <Link href={buildViewAllUrl("/musicas")}>
+                <Button variant="outline" className="gap-2">
+                  Ver todas as {filteredSongs.length} musicas
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </section>
       )}
 
@@ -120,39 +133,81 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
             title="Artistas"
             count={filteredArtists.length}
             addHref="/novo?tipo=artista"
+            viewAllHref={buildViewAllUrl("/artistas")}
+            hasMore={filteredArtists.length > PREVIEW_SIZE}
           />
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {pagedArtists.map((artist) => (
+            {previewArtists.map((artist) => (
               <ArtistCard key={artist.id} artist={artist} />
             ))}
           </div>
-          <Pagination
-            currentPage={artistPage}
-            totalPages={artistTotalPages}
-            onPageChange={(p) => setArtistPage(p)}
-          />
+          {filteredArtists.length > PREVIEW_SIZE && (
+            <div className="mt-4 flex justify-center">
+              <Link href={buildViewAllUrl("/artistas")}>
+                <Button variant="outline" className="gap-2">
+                  Ver todos os {filteredArtists.length} artistas
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </section>
       )}
 
-      {/* Repertórios */}
+      {/* Repertorios */}
       {showRepertoires && filteredRepertoires.length > 0 && (
         <section aria-labelledby="repertoires-heading">
           <SectionHeader
             icon={<ListMusic className="w-5 h-5" />}
-            title="Repertórios"
+            title="Repertorios"
             count={filteredRepertoires.length}
             addHref="/novo?tipo=repertorio"
+            viewAllHref={buildViewAllUrl("/repertorios")}
+            hasMore={filteredRepertoires.length > PREVIEW_SIZE}
           />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pagedRepertoires.map((rep) => (
+            {previewRepertoires.map((rep) => (
               <RepertoireCard key={rep.id} repertoire={rep} />
             ))}
           </div>
-          <Pagination
-            currentPage={repertoirePage}
-            totalPages={repertoireTotalPages}
-            onPageChange={(p) => setRepertoirePage(p)}
+          {filteredRepertoires.length > PREVIEW_SIZE && (
+            <div className="mt-4 flex justify-center">
+              <Link href={buildViewAllUrl("/repertorios")}>
+                <Button variant="outline" className="gap-2">
+                  Ver todos os {filteredRepertoires.length} repertorios
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Generos */}
+      {showGenres && filteredGenres.length > 0 && (
+        <section aria-labelledby="genres-heading">
+          <SectionHeader
+            icon={<Tag className="w-5 h-5" />}
+            title="Generos"
+            count={filteredGenres.length}
+            viewAllHref={buildViewAllUrl("/generos")}
+            hasMore={filteredGenres.length > PREVIEW_SIZE}
           />
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {previewGenres.map((genre) => (
+              <GenreCard key={genre.name} genre={genre} />
+            ))}
+          </div>
+          {filteredGenres.length > PREVIEW_SIZE && (
+            <div className="mt-4 flex justify-center">
+              <Link href={buildViewAllUrl("/generos")}>
+                <Button variant="outline" className="gap-2">
+                  Ver todos os {filteredGenres.length} generos
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </section>
       )}
     </main>
@@ -164,11 +219,15 @@ function SectionHeader({
   title,
   count,
   addHref,
+  viewAllHref,
+  hasMore,
 }: {
   icon: React.ReactNode
   title: string
   count: number
-  addHref: string
+  addHref?: string
+  viewAllHref: string
+  hasMore: boolean
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -183,12 +242,24 @@ function SectionHeader({
           {count} {count === 1 ? "resultado" : "resultados"}
         </span>
       </div>
-      <Link href={addHref}>
-        <Button variant="outline" size="sm" className="gap-1.5 text-foreground border-border text-xs">
-          <PlusCircle className="w-3.5 h-3.5" />
-          Adicionar
-        </Button>
-      </Link>
+      <div className="flex items-center gap-2">
+        {hasMore && (
+          <Link href={viewAllHref} className="hidden sm:block">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground text-xs">
+              Ver mais
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </Link>
+        )}
+        {addHref && (
+          <Link href={addHref}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-foreground border-border text-xs">
+              <PlusCircle className="w-3.5 h-3.5" />
+              Adicionar
+            </Button>
+          </Link>
+        )}
+      </div>
     </div>
   )
 }

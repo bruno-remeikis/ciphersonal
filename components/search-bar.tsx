@@ -3,13 +3,14 @@
 import { Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type FilterType = "todos" | "musicas" | "artistas" | "repertorios"
+export type FilterType = "todos" | "musicas" | "artistas" | "repertorios" | "generos"
 
 const filters: { value: FilterType; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "musicas", label: "Músicas" },
   { value: "artistas", label: "Artistas" },
   { value: "repertorios", label: "Repertórios" },
+  { value: "generos", label: "Gêneros" },
 ]
 
 type SearchBarProps = {
