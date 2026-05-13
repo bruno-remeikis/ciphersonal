@@ -16,13 +16,34 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    // Busca músicas que contenham o nome do artista
-    const songs = await prisma.song.findMany()
-    const artistSongs = songs.filter((s) =>
-      s.artists.some((name: string) =>
-        name.toLowerCase().includes(artist.name.toLowerCase())
+    // Busca músicas que contenham o nome do artista e todos os repertórios
+    const [songs, repertoires] = await Promise.all([
+      prisma.song.findMany(),
+      prisma.repertoire.findMany({
+        select: { id: true, title: true, songIds: true },
+      }),
+    ])
+
+    // Criar mapa de songId -> repertórios
+    const songRepertoiresMap = new Map<string, { id: string; title: string }[]>()
+    for (const rep of repertoires) {
+      for (const songId of rep.songIds) {
+        const existing = songRepertoiresMap.get(songId) || []
+        existing.push({ id: rep.id, title: rep.title })
+        songRepertoiresMap.set(songId, existing)
+      }
+    }
+
+    const artistSongs = songs
+      .filter((s) =>
+        s.artists.some((name: string) =>
+          name.toLowerCase().includes(artist.name.toLowerCase())
+        )
       )
-    )
+      .map((song) => ({
+        ...song,
+        repertoires: songRepertoiresMap.get(song.id) || [],
+      }))
 
     return NextResponse.json({
       artist,

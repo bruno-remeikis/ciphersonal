@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    // Mapear songId -> lista de repertórios
+    // Criar mapa de songId -> repertórios
     const songRepertoiresMap = new Map<string, { id: string; title: string }[]>()
     for (const rep of repertoires) {
       for (const songId of rep.songIds) {
@@ -26,22 +26,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Adicionar repertórios às músicas
-    let enrichedSongs = songs.map((song) => ({
+    // Adicionar repertórios a cada música
+    let filtered = songs.map((song) => ({
       ...song,
       repertoires: songRepertoiresMap.get(song.id) || [],
     }))
 
     // Filtrar por gênero se especificado
     if (genre) {
-      enrichedSongs = enrichedSongs.filter((s) =>
+      filtered = filtered.filter((s) =>
         s.genres.some((g: string) => g.toLowerCase() === genre.toLowerCase())
       )
     }
 
     // Filtrar por query de pesquisa
     if (q) {
-      enrichedSongs = enrichedSongs.filter(
+      filtered = filtered.filter(
         (s) =>
           s.title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q) ||
           s.artists.some((a: string) =>
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(enrichedSongs)
+    return NextResponse.json(filtered)
   } catch (error) {
     console.error("Error fetching songs:", error)
     return NextResponse.json({ error: "Failed to fetch songs" }, { status: 500 })
