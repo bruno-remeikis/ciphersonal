@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Geist_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import { SWRProvider } from '@/components/swr-provider'
 import './globals.css'
 
@@ -40,6 +41,7 @@ export default function RootLayout({
         <SWRProvider>
           {children}
         </SWRProvider>
+        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )

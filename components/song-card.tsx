@@ -1,4 +1,4 @@
-import { Music } from "lucide-react"
+import { Music, ListMusic } from "lucide-react"
 import { Song } from "@/lib/api"
 import Image from "next/image"
 import Link from "next/link"
@@ -7,6 +7,8 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
   const href = repertoireId
     ? `/musicas/${song.id}?from=repertoire&repertoireId=${repertoireId}`
     : `/musicas/${song.id}`
+
+  const repertoires = song.repertoires || []
 
   return (
     <Link href={href}>
@@ -42,12 +44,38 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
           <p className="text-xs md:text-sm text-muted-foreground truncate mt-0.5">
             {song.artists[0]}
           </p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
-              {song.genres[0]}
-            </span>
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {song.genres.map((genre) => (
+              <span
+                key={genre}
+                className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium"
+              >
+                {genre}
+              </span>
+            ))}
           </div>
         </div>
+
+        {/* Repertoires */}
+        {repertoires.length > 0 && (
+          <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 max-w-[120px]">
+            {repertoires.slice(0, 2).map((rep) => (
+              <span
+                key={rep.id}
+                className="bg-red flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full"
+                title={rep.title}
+              >
+                <ListMusic className="w-3 h-3 shrink-0" />
+                <span className="truncate">{rep.title}</span>
+              </span>
+            ))}
+            {repertoires.length > 2 && (
+              <span className="text-xs text-muted-foreground">
+                +{repertoires.length - 2}
+              </span>
+            )}
+          </div>
+        )}
       </article>
     </Link>
   )

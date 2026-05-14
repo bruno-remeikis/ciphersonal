@@ -16,16 +16,37 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    // Busca as músicas do repertório
-    const songs = repertoire.songIds.length > 0
-      ? await prisma.song.findMany({
-          where: { id: { in: repertoire.songIds } },
-        })
-      : []
+    // Busca as músicas do repertório e todos os repertórios
+    const [songs, allRepertoires] = await Promise.all([
+      repertoire.songIds.length > 0
+        ? prisma.song.findMany({
+            where: { id: { in: repertoire.songIds } },
+          })
+        : Promise.resolve([]),
+      prisma.repertoire.findMany({
+        select: { id: true, title: true, songIds: true },
+      }),
+    ])
+
+    // Criar mapa de songId -> repertórios
+    const songRepertoiresMap = new Map<string, { id: string; title: string }[]>()
+    for (const rep of allRepertoires) {
+      for (const songId of rep.songIds) {
+        const existing = songRepertoiresMap.get(songId) || []
+        existing.push({ id: rep.id, title: rep.title })
+        songRepertoiresMap.set(songId, existing)
+      }
+    }
+
+    // Adicionar repertórios a cada música
+    const songsWithRepertoires = songs.map((song) => ({
+      ...song,
+      repertoires: songRepertoiresMap.get(song.id) || [],
+    }))
 
     return NextResponse.json({
       repertoire,
-      songs,
+      songs: songsWithRepertoires,
     })
   } catch (error) {
     console.error("Error fetching repertoire:", error)

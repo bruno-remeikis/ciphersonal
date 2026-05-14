@@ -4,10 +4,11 @@ import useSWR from "swr"
 import { SongCard } from "@/components/song-card"
 import { ArtistCard } from "@/components/artist-card"
 import { RepertoireCard } from "@/components/repertoire-card"
-import { fetchSongs, fetchArtists, fetchRepertoires, swrKeys } from "@/lib/api"
-import type { Song, Artist, Repertoire } from "@/lib/api"
+import { GenreCard } from "@/components/genre-card"
+import { fetchSongs, fetchArtists, fetchRepertoires, fetchGenres, swrKeys } from "@/lib/api"
+import type { Song, Artist, Repertoire, Genre } from "@/lib/api"
 import { FilterType } from "@/components/search-bar"
-import { Music2, Users, ListMusic, SearchX, PlusCircle, Loader2, ChevronRight } from "lucide-react"
+import { Music2, Users, ListMusic, Tag, SearchX, PlusCircle, Loader2, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -22,6 +23,7 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
   const showSongs = filter === "todos" || filter === "musicas"
   const showArtists = filter === "todos" || filter === "artistas"
   const showRepertoires = filter === "todos" || filter === "repertorios"
+  const showGenres = filter === "todos" || filter === "generos"
 
   const { data: songs, isLoading: loadingSongs } = useSWR(
     showSongs ? swrKeys.songs(query) : null,
@@ -38,10 +40,16 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
     () => fetchRepertoires(query)
   )
 
+  const { data: genres, isLoading: loadingGenres } = useSWR(
+    showGenres ? swrKeys.genres(query) : null,
+    () => fetchGenres(query)
+  )
+
   const isLoading =
     (showSongs && loadingSongs) ||
     (showArtists && loadingArtists) ||
-    (showRepertoires && loadingRepertoires)
+    (showRepertoires && loadingRepertoires) ||
+    (showGenres && loadingGenres)
 
   if (isLoading) {
     return (
@@ -55,16 +63,19 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
   const filteredSongs: Song[] = songs ?? []
   const filteredArtists: Artist[] = artists ?? []
   const filteredRepertoires: Repertoire[] = repertoires ?? []
+  const filteredGenres: Genre[] = genres ?? []
 
   const hasResults =
     (showSongs && filteredSongs.length > 0) ||
     (showArtists && filteredArtists.length > 0) ||
-    (showRepertoires && filteredRepertoires.length > 0)
+    (showRepertoires && filteredRepertoires.length > 0) ||
+    (showGenres && filteredGenres.length > 0)
 
   // Apenas os primeiros 6 itens de cada categoria
   const previewSongs = filteredSongs.slice(0, PREVIEW_SIZE)
   const previewArtists = filteredArtists.slice(0, PREVIEW_SIZE)
   const previewRepertoires = filteredRepertoires.slice(0, PREVIEW_SIZE)
+  const previewGenres = filteredGenres.slice(0, PREVIEW_SIZE)
 
   if (!hasResults) {
     return (
@@ -171,6 +182,34 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
           )}
         </section>
       )}
+
+      {/* Generos */}
+      {showGenres && filteredGenres.length > 0 && (
+        <section aria-labelledby="genres-heading">
+          <SectionHeader
+            icon={<Tag className="w-5 h-5" />}
+            title="Generos"
+            count={filteredGenres.length}
+            viewAllHref={buildViewAllUrl("/generos")}
+            hasMore={filteredGenres.length > PREVIEW_SIZE}
+          />
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {previewGenres.map((genre) => (
+              <GenreCard key={genre.name} genre={genre} />
+            ))}
+          </div>
+          {filteredGenres.length > PREVIEW_SIZE && (
+            <div className="mt-4 flex justify-center">
+              <Link href={buildViewAllUrl("/generos")}>
+                <Button variant="outline" className="gap-2">
+                  Ver todos os {filteredGenres.length} generos
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
     </main>
   )
 }
@@ -186,7 +225,7 @@ function SectionHeader({
   icon: React.ReactNode
   title: string
   count: number
-  addHref: string
+  addHref?: string
   viewAllHref: string
   hasMore: boolean
 }) {
@@ -212,12 +251,14 @@ function SectionHeader({
             </Button>
           </Link>
         )}
-        <Link href={addHref}>
-          <Button variant="outline" size="sm" className="gap-1.5 text-foreground border-border text-xs">
-            <PlusCircle className="w-3.5 h-3.5" />
-            Adicionar
-          </Button>
-        </Link>
+        {addHref && (
+          <Link href={addHref}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-foreground border-border text-xs">
+              <PlusCircle className="w-3.5 h-3.5" />
+              Adicionar
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   )
