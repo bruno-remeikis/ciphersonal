@@ -1,5 +1,6 @@
 import { SongPageClient } from "@/components/song-page-client"
 import { fetchSong } from "@/lib/api"
+import { requireAuth } from "@/lib/require-auth"
 import { notFound } from "next/navigation"
 
 export const dynamic = "force-dynamic"
@@ -10,6 +11,8 @@ type Props = {
 }
 
 export default async function SongPage({ params, searchParams }: Props) {
+  await requireAuth()
+  
   const { id } = await params
   const { from, repertoireId } = await searchParams
 

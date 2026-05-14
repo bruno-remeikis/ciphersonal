@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SWRProvider } from '@/components/swr-provider'
+import { AuthProvider } from '@/components/auth-provider'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -38,9 +39,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${inter.variable} ${_geistMono.variable} font-sans antialiased`}>
-        <SWRProvider>
-          {children}
-        </SWRProvider>
+        <AuthProvider>
+          <SWRProvider>
+            {children}
+          </SWRProvider>
+        </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

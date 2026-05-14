@@ -69,3 +69,25 @@ model LastSeen {
 
   @@map("last_seen")
 }
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  name      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
