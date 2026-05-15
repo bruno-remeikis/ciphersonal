@@ -17,6 +17,7 @@ import {
   Song, Page, Repertoire,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useSettings } from "@/components/settings-provider"
 
 type SongPageClientProps = {
   song: Song
@@ -25,6 +26,7 @@ type SongPageClientProps = {
 
 export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageClientProps) {
   const router = useRouter()
+  const { settings } = useSettings()
 
   // Estado local do song (para CRUD de pages)
   const [song, setSong] = useState<Song>(initialSong)
@@ -255,6 +257,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 onDelete={() => handleDeletePage(mainLyrics.id)}
                 onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
                 isMain
+                fontSize={settings.sheetFontSize}
               />
             )}
             {mainChords && (
@@ -264,6 +267,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 onDelete={() => handleDeletePage(mainChords.id)}
                 onSetMain={() => handleSetMain(mainChords.id, "chords")}
                 isMain
+                fontSize={settings.sheetFontSize}
               />
             )}
           </div>
@@ -285,6 +289,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
               onDelete={() => handleDeletePage(activePage.id)}
               onSetMain={() => handleSetMain(activePage.id, activePage.type)}
               isMain={activePage.isMain}
+              fontSize={settings.sheetFontSize}
             />
           </div>
         )}
@@ -496,12 +501,14 @@ function ContentCard({
   onDelete,
   onSetMain,
   isMain,
+  fontSize = 14,
 }: {
   page: Page
   onEdit: () => void
   onDelete: () => void
   onSetMain: () => void
   isMain: boolean
+  fontSize?: number
 }) {
   const isLyrics = page.type === "lyrics"
   return (
@@ -535,7 +542,10 @@ function ContentCard({
           </Button>
         </div>
       </div>
-      <pre className="px-4 py-4 text-sm text-foreground font-mono whitespace-pre-wrap leading-relaxed">
+      <pre 
+        className="px-4 py-4 text-foreground font-mono whitespace-pre-wrap leading-relaxed"
+        style={{ fontSize: `${fontSize}px` }}
+      >
         {page.content}
       </pre>
     </div>

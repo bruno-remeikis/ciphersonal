@@ -1,6 +1,6 @@
 "use client"
 
-import { Music2, Bell, User, Menu, X, PlusCircle, LogOut } from "lucide-react"
+import { Music2, Bell, User, Menu, X, PlusCircle, LogOut, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -84,6 +84,13 @@ export function Header() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <Link href="/configuracoes">
+                      <DropdownMenuItem className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Configurações
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
                       Sair
@@ -132,12 +139,20 @@ export function Header() {
           ))}
           
           {user && (
-            <Link href="/novo" onClick={() => setMenuOpen(false)}>
-              <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">
-                <PlusCircle className="w-4 h-4" />
-                Adicionar
-              </div>
-            </Link>
+            <>
+              <Link href="/novo" onClick={() => setMenuOpen(false)}>
+                <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">
+                  <PlusCircle className="w-4 h-4" />
+                  Adicionar
+                </div>
+              </Link>
+              <Link href="/configuracoes" onClick={() => setMenuOpen(false)}>
+                <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">
+                  <Settings className="w-4 h-4" />
+                  Configurações
+                </div>
+              </Link>
+            </>
           )}
           
           <div className="pt-2 pb-1 border-t border-border mt-1">
