@@ -58,19 +58,36 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
 
         {/* Repertoires */}
         {repertoires.length > 0 && (
-          <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 max-w-[120px]">
-            {repertoires.slice(0, 2).map((rep) => (
+          // <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 max-w-[120px]">
+          //   {repertoires.slice(0, 5).map((rep) => (
+          //     <span
+          //       key={rep.id}
+          //       className="bg-red flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full"
+          //       title={rep.title}
+          //     >
+          //       <ListMusic className="w-3 h-3 shrink-0" />
+          //       <span className="truncate">{rep.title}</span>
+          //     </span>
+          //   ))}
+          //   {repertoires.length > 5 && (
+          //     <span className="text-xs text-muted-foreground">
+          //       +{repertoires.length - 2}
+          //     </span>
+          //   )}
+          // </div>
+          <div className="grid grid-flow-col grid-rows-3 max-w-50 gap-0.5">
+            {repertoires.slice(0, 5).map((rep) => (
               <span
                 key={rep.id}
-                className="bg-red flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full"
+                className="bg-primary/10 px-2 py-0.5 rounded-xs flex items-center gap-1 text-[0.6rem] text-muted-foreground truncate max-w-full"
                 title={rep.title}
               >
                 <ListMusic className="w-3 h-3 shrink-0" />
-                <span className="truncate">{rep.title}</span>
+                <span className="truncate whitespace-nowrap overflow-hidden text-ellipsis">{rep.title}</span>
               </span>
             ))}
-            {repertoires.length > 2 && (
-              <span className="text-xs text-muted-foreground">
+            {repertoires.length > 5 && (
+              <span className="flex items-center justify-end px-1 text-xs text-muted-foreground">
                 +{repertoires.length - 2}
               </span>
             )}

@@ -1,13 +1,12 @@
-import { HomePage } from "@/components/home-page"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 
-export default async function Page() {
+export async function requireAuth() {
   const user = await getCurrentUser()
   
   if (!user) {
     redirect("/login")
   }
-
-  return <HomePage />
+  
+  return user
 }
