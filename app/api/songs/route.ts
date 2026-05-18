@@ -49,6 +49,10 @@ export async function GET(request: NextRequest) {
           ) ||
           s.genres.some((g: string) =>
             g.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)
+          ) ||
+          s.pages.some((p: { type: string; content: string }) =>
+            p.type === "lyrics" &&
+            p.content.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)
           )
       )
     }
