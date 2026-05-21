@@ -249,26 +249,33 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
 
         {/* Main content: lyrics + chords */}
         {!activePage && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mainLyrics && (
-              <ContentCard
-                page={mainLyrics}
-                onEdit={() => setEditingPage({ ...mainLyrics })}
-                onDelete={() => handleDeletePage(mainLyrics.id)}
-                onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
-                isMain
-                fontSize={settings.sheetFontSize}
-              />
-            )}
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Chords - appears first on mobile, shrinks to content on desktop */}
             {mainChords && (
-              <ContentCard
-                page={mainChords}
-                onEdit={() => setEditingPage({ ...mainChords })}
-                onDelete={() => handleDeletePage(mainChords.id)}
-                onSetMain={() => handleSetMain(mainChords.id, "chords")}
-                isMain
-                fontSize={settings.sheetFontSize}
-              />
+              <div className="md:shrink-0 md:w-auto md:max-w-[50%]">
+                <ContentCard
+                  page={mainChords}
+                  onEdit={() => setEditingPage({ ...mainChords })}
+                  onDelete={() => handleDeletePage(mainChords.id)}
+                  onSetMain={() => handleSetMain(mainChords.id, "chords")}
+                  isMain
+                  fontSize={settings.sheetFontSize}
+                  fitContent
+                />
+              </div>
+            )}
+            {/* Lyrics - takes remaining space */}
+            {mainLyrics && (
+              <div className="flex-1 min-w-0">
+                <ContentCard
+                  page={mainLyrics}
+                  onEdit={() => setEditingPage({ ...mainLyrics })}
+                  onDelete={() => handleDeletePage(mainLyrics.id)}
+                  onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
+                  isMain
+                  fontSize={settings.sheetFontSize}
+                />
+              </div>
             )}
           </div>
         )}
@@ -502,6 +509,7 @@ function ContentCard({
   onSetMain,
   isMain,
   fontSize = 14,
+  fitContent = false,
 }: {
   page: Page
   onEdit: () => void
@@ -509,10 +517,11 @@ function ContentCard({
   onSetMain: () => void
   isMain: boolean
   fontSize?: number
+  fitContent?: boolean
 }) {
   const isLyrics = page.type === "lyrics"
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className={`rounded-xl border border-border bg-card overflow-hidden ${fitContent ? "h-fit" : ""}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
           {isLyrics ? (
@@ -543,7 +552,7 @@ function ContentCard({
         </div>
       </div>
       <pre 
-        className="px-4 py-4 text-foreground font-mono whitespace-pre-wrap leading-relaxed"
+        className={`px-4 py-4 text-foreground font-mono whitespace-pre-wrap leading-relaxed ${fitContent ? "w-fit" : ""}`}
         style={{ fontSize: `${fontSize}px` }}
       >
         {page.content}
