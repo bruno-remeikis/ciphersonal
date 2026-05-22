@@ -1,10 +1,49 @@
 // Tipos principais - compatíveis com o schema do Prisma
-export type Page = {
-  id: number
-  type: "lyrics" | "chords"
+
+// Estrutura do conteúdo lyrics2 (Letra com seções)
+export type Lyrics2Section = {
   title: string
   content: string
+}
+
+export type Lyrics2OrderItem = {
+  title: string
+  expanded: boolean
+}
+
+export type Lyrics2Content = {
+  sections: Lyrics2Section[]
+  order: Lyrics2OrderItem[]
+}
+
+export type PageType = "lyrics" | "lyrics2" | "chords"
+
+export type Page = {
+  id: number
+  type: PageType
+  title: string
+  content: string // Para lyrics e chords é string; para lyrics2 é JSON stringified de Lyrics2Content
   isMain: boolean
+}
+
+// Helpers para lyrics2
+export function parseLyrics2Content(content: string): Lyrics2Content | null {
+  try {
+    return JSON.parse(content) as Lyrics2Content
+  } catch {
+    return null
+  }
+}
+
+export function stringifyLyrics2Content(content: Lyrics2Content): string {
+  return JSON.stringify(content)
+}
+
+// Labels de exibição para tipos de página
+export const pageTypeLabels: Record<PageType, string> = {
+  lyrics: "Texto",
+  lyrics2: "Letra",
+  chords: "Acordes",
 }
 
 export type SongRepertoire = {
