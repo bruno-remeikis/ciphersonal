@@ -1,9 +1,13 @@
+"use client"
+
 import { Music, ListMusic } from "lucide-react"
 import { Song } from "@/lib/api"
 import Image from "next/image"
 import Link from "next/link"
+import { useSettings } from "@/components/settings-provider"
 
 export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: number }) {
+  const { settings } = useSettings()
   const href = repertoireId
     ? `/musicas/${song.id}?from=repertoire&repertoireId=${repertoireId}`
     : `/musicas/${song.id}`
@@ -57,7 +61,7 @@ export function SongCard({ song, repertoireId }: { song: Song; repertoireId?: nu
         </div>
 
         {/* Repertoires */}
-        {repertoires.length > 0 && (
+        {settings.showRepertoiresInSongCard && repertoires.length > 0 && (
           // <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 max-w-[120px]">
           //   {repertoires.slice(0, 5).map((rep) => (
           //     <span

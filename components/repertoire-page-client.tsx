@@ -6,9 +6,28 @@ import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowLeft, Globe, Lock, Pencil, Trash2,
-  ChevronUp, ChevronDown, PlusCircle, X, Check, Music
+  GripVertical, PlusCircle, X, Check, Music,
+  ListMusic
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  TouchSensor,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Repertoire, Song, updateRepertoire, deleteRepertoire, recordLastSeen } from "@/lib/api"
@@ -54,6 +73,35 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
       )
     : availableSongs
 
+  // DnD Kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      const oldIndex = songIds.indexOf(active.id as string)
+      const newIndex = songIds.indexOf(over.id as string)
+      const newIds = arrayMove(songIds, oldIndex, newIndex)
+      setSongIds(newIds)
+      persistSongIds(newIds)
+    }
+  }
+
   // Persist song changes to database
   async function persistSongIds(newIds: string[]) {
     setSaving(true)
@@ -65,22 +113,6 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
     } finally {
       setSaving(false)
     }
-  }
-
-  function moveUp(index: number) {
-    if (index === 0) return
-    const newIds = [...songIds]
-    ;[newIds[index - 1], newIds[index]] = [newIds[index], newIds[index - 1]]
-    setSongIds(newIds)
-    persistSongIds(newIds)
-  }
-
-  function moveDown(index: number) {
-    if (index === songIds.length - 1) return
-    const newIds = [...songIds]
-    ;[newIds[index], newIds[index + 1]] = [newIds[index + 1], newIds[index]]
-    setSongIds(newIds)
-    persistSongIds(newIds)
   }
 
   function removeSong(songId: string) {
@@ -134,7 +166,7 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                <Music className="w-10 h-10 text-primary/50" />
+                <ListMusic className="w-10 h-10 text-primary/50" />
               </div>
             )}
           </div>
@@ -203,20 +235,26 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
               </Button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {currentSongs.map((song, index) => (
-                <SongRepertoireRow
-                  key={song.id}
-                  song={song}
-                  index={index}
-                  total={currentSongs.length}
-                  repertoireId={initial.id}
-                  onMoveUp={() => moveUp(index)}
-                  onMoveDown={() => moveDown(index)}
-                  onRemove={() => removeSong(song.id)}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={songIds} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-2">
+                  {currentSongs.map((song, index) => (
+                    <SortableSongRow
+                      key={song.id}
+                      song={song}
+                      index={index}
+                      total={currentSongs.length}
+                      repertoireId={initial.id}
+                      onRemove={() => removeSong(song.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </section>
       </main>
@@ -254,7 +292,13 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
                       className="flex items-center gap-3 p-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-all"
                     >
                       <div className="relative shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
-                        <Image src={song.coverUrl} alt="" fill className="object-cover" sizes="40px" />
+                        {song.coverUrl ? (
+                          <Image src={song.coverUrl} alt="" fill className="object-cover" sizes="40px" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                            <Music className="w-5 h-5 text-primary/50" />
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{song.title}</p>
@@ -321,25 +365,51 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
   )
 }
 
-function SongRepertoireRow({
+function SortableSongRow({
   song,
   index,
   total,
   repertoireId,
-  onMoveUp,
-  onMoveDown,
   onRemove,
 }: {
   song: Song
   index: number
   total: number
   repertoireId: string
-  onMoveUp: () => void
-  onMoveDown: () => void
   onRemove: () => void
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: song.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
   return (
-    <div className="flex items-center gap-2 p-3 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group">
+    <div 
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 p-3 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group ${
+        isDragging ? "z-50 shadow-lg border-primary/50 bg-card/95" : ""
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="shrink-0 w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+        aria-label="Arrastar para reordenar"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
       {/* Position */}
       <span className="shrink-0 w-5 text-center text-xs font-bold text-muted-foreground select-none">
         {index + 1}
@@ -348,7 +418,13 @@ function SongRepertoireRow({
       {/* Cover */}
       <Link href={`/musicas/${song.id}?from=repertoire&repertoireId=${repertoireId}`} className="shrink-0">
         <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-muted">
-          <Image src={song.coverUrl} alt={`Capa de ${song.title}`} fill className="object-cover" sizes="44px" />
+          {song.coverUrl ? (
+            <Image src={song.coverUrl} alt={`Capa de ${song.title}`} fill className="object-cover" sizes="44px" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-primary/10">
+              <Music className="w-5 h-5 text-primary/50" />
+            </div>
+          )}
         </div>
       </Link>
 
@@ -360,38 +436,16 @@ function SongRepertoireRow({
         <p className="text-xs text-muted-foreground truncate">{song.artists[0]}</p>
       </Link>
 
-      {/* Reorder + remove */}
-      <div className="flex items-center gap-0.5 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-7 h-7 text-muted-foreground hover:text-foreground"
-          onClick={onMoveUp}
-          disabled={index === 0}
-          aria-label="Mover para cima"
-        >
-          <ChevronUp className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-7 h-7 text-muted-foreground hover:text-foreground"
-          onClick={onMoveDown}
-          disabled={index === total - 1}
-          aria-label="Mover para baixo"
-        >
-          <ChevronDown className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-7 h-7 text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
-          aria-label="Remover do repertório"
-        >
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+      {/* Remove */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="w-7 h-7 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={onRemove}
+        aria-label="Remover do repertório"
+      >
+        <X className="w-4 h-4" />
+      </Button>
     </div>
   )
 }

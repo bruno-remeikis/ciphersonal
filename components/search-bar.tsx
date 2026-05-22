@@ -27,11 +27,11 @@ export function SearchBar({ query, onQueryChange, filter, onFilterChange }: Sear
         {/* Heading */}
         <div className="text-center">
           <h1 className="text-2xl md:text-4xl font-bold text-primary-foreground text-balance leading-tight">
-            Encontre cifras das suas músicas favoritas
+            Suas cifras pessoais
           </h1>
-          <p className="mt-1 text-sm md:text-base text-primary-foreground/70 text-pretty">
+          {/* <p className="mt-1 text-sm md:text-base text-primary-foreground/70 text-pretty">
             Mais de 1 milhão de cifras, tabs e letras disponíveis
-          </p>
+          </p> */}
         </div>
 
         {/* Input */}

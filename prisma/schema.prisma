@@ -71,15 +71,21 @@ model LastSeen {
 }
 
 model User {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  email     String   @unique
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  email     String       @unique
   password  String
   name      String
+  settings  UserSettings?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+type UserSettings {
+  showRepertoiresInSongCard Boolean @default(true)
+  sheetFontSize             Int     @default(16)
 }
 
 model Session {

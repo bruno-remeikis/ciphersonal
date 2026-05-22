@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SWRProvider } from '@/components/swr-provider'
 import { AuthProvider } from '@/components/auth-provider'
+import { SettingsProvider } from '@/components/settings-provider'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -40,9 +41,11 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${inter.variable} ${_geistMono.variable} font-sans antialiased`}>
         <AuthProvider>
-          <SWRProvider>
-            {children}
-          </SWRProvider>
+          <SettingsProvider>
+            <SWRProvider>
+              {children}
+            </SWRProvider>
+          </SettingsProvider>
         </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

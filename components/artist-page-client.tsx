@@ -90,7 +90,7 @@ export function ArtistPageClient({ artist, initialSongs }: ArtistPageClientProps
               <div className="flex items-center gap-1.5 text-primary">
                 <Music className="w-4 h-4" />
                 <span className="font-bold">{artist.songCount}</span>
-                <span className="text-muted-foreground text-sm">cifras</span>
+                <span className="text-muted-foreground text-sm">músicas</span>
               </div>
             </div>
             <div className="flex gap-2 mt-3">

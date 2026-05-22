@@ -8,7 +8,7 @@ import { GenreCard } from "@/components/genre-card"
 import { fetchSongs, fetchArtists, fetchRepertoires, fetchGenres, swrKeys } from "@/lib/api"
 import type { Song, Artist, Repertoire, Genre } from "@/lib/api"
 import { FilterType } from "@/components/search-bar"
-import { Music2, Users, ListMusic, Tag, SearchX, PlusCircle, Loader2, ChevronRight } from "lucide-react"
+import { Music2, Users, ListMusic, SearchX, PlusCircle, Loader2, ChevronRight, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -100,7 +100,7 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
       {showSongs && filteredSongs.length > 0 && (
         <section aria-labelledby="songs-heading">
           <SectionHeader
-            icon={<Music2 className="w-5 h-5" />}
+            icon={<Music className="w-4 h-4" />}
             title="Musicas"
             count={filteredSongs.length}
             addHref="/novo?tipo=musica"
@@ -129,7 +129,7 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
       {showArtists && filteredArtists.length > 0 && (
         <section aria-labelledby="artists-heading">
           <SectionHeader
-            icon={<Users className="w-5 h-5" />}
+            icon={<Users className="w-4 h-4" />}
             title="Artistas"
             count={filteredArtists.length}
             addHref="/novo?tipo=artista"
@@ -158,7 +158,7 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
       {showRepertoires && filteredRepertoires.length > 0 && (
         <section aria-labelledby="repertoires-heading">
           <SectionHeader
-            icon={<ListMusic className="w-5 h-5" />}
+            icon={<ListMusic className="w-4 h-4" />}
             title="Repertorios"
             count={filteredRepertoires.length}
             addHref="/novo?tipo=repertorio"
@@ -187,7 +187,7 @@ export function ResultsSection({ query, filter }: ResultsSectionProps) {
       {showGenres && filteredGenres.length > 0 && (
         <section aria-labelledby="genres-heading">
           <SectionHeader
-            icon={<Tag className="w-5 h-5" />}
+            icon={<Music2 className="w-4 h-4" />}
             title="Generos"
             count={filteredGenres.length}
             viewAllHref={buildViewAllUrl("/generos")}

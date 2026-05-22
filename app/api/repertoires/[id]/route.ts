@@ -44,9 +44,15 @@ export async function GET(
       repertoires: songRepertoiresMap.get(song.id) || [],
     }))
 
+    // Ordenar as músicas de acordo com a ordem em songIds
+    const songMap = new Map(songsWithRepertoires.map(song => [song.id, song]))
+    const orderedSongs = repertoire.songIds
+      .map(id => songMap.get(id))
+      .filter((song): song is NonNullable<typeof song> => song !== undefined)
+
     return NextResponse.json({
       repertoire,
-      songs: songsWithRepertoires,
+      songs: orderedSongs,
     })
   } catch (error) {
     console.error("Error fetching repertoire:", error)

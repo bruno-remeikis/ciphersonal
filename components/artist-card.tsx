@@ -46,7 +46,7 @@ export function ArtistCard({ artist }: { artist: Artist }) {
             <Music className="w-3.5 h-3.5" />
             <span className="text-sm font-bold">{artist.songCount}</span>
           </div>
-          <span className="text-xs text-muted-foreground">cifras</span>
+          <span className="text-xs text-muted-foreground">músicas</span>
         </div>
       </article>
     </Link>

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import {
-  ChevronLeft, ChevronRight, Music2, ListMusic, Plus, Pencil, Trash2,
-  Star, FileText, Guitar, MoreVertical, Check, X, ArrowLeft
+  ChevronLeft, ChevronRight, ListMusic, Plus, Pencil, Trash2,
+  Star, FileText, Guitar, Check, X, ArrowLeft,
+  Music
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -17,6 +18,7 @@ import {
   Song, Page, Repertoire,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useSettings } from "@/components/settings-provider"
 
 type SongPageClientProps = {
   song: Song
@@ -25,6 +27,7 @@ type SongPageClientProps = {
 
 export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageClientProps) {
   const router = useRouter()
+  const { settings } = useSettings()
 
   // Estado local do song (para CRUD de pages)
   const [song, setSong] = useState<Song>(initialSong)
@@ -193,7 +196,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                <Music2 className="w-10 h-10 text-primary/50" />
+                <Music className="w-10 h-10 text-primary/50" />
               </div>
             )}
           </div>
@@ -247,24 +250,33 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
 
         {/* Main content: lyrics + chords */}
         {!activePage && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mainLyrics && (
-              <ContentCard
-                page={mainLyrics}
-                onEdit={() => setEditingPage({ ...mainLyrics })}
-                onDelete={() => handleDeletePage(mainLyrics.id)}
-                onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
-                isMain
-              />
-            )}
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Chords - appears first on mobile, shrinks to content on desktop */}
             {mainChords && (
-              <ContentCard
-                page={mainChords}
-                onEdit={() => setEditingPage({ ...mainChords })}
-                onDelete={() => handleDeletePage(mainChords.id)}
-                onSetMain={() => handleSetMain(mainChords.id, "chords")}
-                isMain
-              />
+              <div className="md:shrink-0 md:w-auto md:max-w-[50%]">
+                <ContentCard
+                  page={mainChords}
+                  onEdit={() => setEditingPage({ ...mainChords })}
+                  onDelete={() => handleDeletePage(mainChords.id)}
+                  onSetMain={() => handleSetMain(mainChords.id, "chords")}
+                  isMain
+                  fontSize={settings.sheetFontSize}
+                  fitContent
+                />
+              </div>
+            )}
+            {/* Lyrics - takes remaining space */}
+            {mainLyrics && (
+              <div className="flex-1 min-w-0">
+                <ContentCard
+                  page={mainLyrics}
+                  onEdit={() => setEditingPage({ ...mainLyrics })}
+                  onDelete={() => handleDeletePage(mainLyrics.id)}
+                  onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
+                  isMain
+                  fontSize={settings.sheetFontSize}
+                />
+              </div>
             )}
           </div>
         )}
@@ -285,6 +297,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
               onDelete={() => handleDeletePage(activePage.id)}
               onSetMain={() => handleSetMain(activePage.id, activePage.type)}
               isMain={activePage.isMain}
+              fontSize={settings.sheetFontSize}
             />
           </div>
         )}
@@ -386,7 +399,13 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 <Link key={rep.id} href={`/repertorios/${rep.id}`}>
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
                     <div className="relative shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-muted">
-                      <Image src={rep.coverUrl} alt="" fill className="object-cover" sizes="40px" />
+                      {rep.coverUrl ? (
+                        <Image src={rep.coverUrl} alt="" fill className="object-cover" sizes="40px" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                          <ListMusic className="w-5 h-5 text-primary/50" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{rep.title}</p>
@@ -496,16 +515,20 @@ function ContentCard({
   onDelete,
   onSetMain,
   isMain,
+  fontSize = 14,
+  fitContent = false,
 }: {
   page: Page
   onEdit: () => void
   onDelete: () => void
   onSetMain: () => void
   isMain: boolean
+  fontSize?: number
+  fitContent?: boolean
 }) {
   const isLyrics = page.type === "lyrics"
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className={`rounded-xl border border-border bg-card overflow-hidden ${fitContent ? "h-fit" : ""}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
           {isLyrics ? (
@@ -535,7 +558,10 @@ function ContentCard({
           </Button>
         </div>
       </div>
-      <pre className="px-4 py-4 text-sm text-foreground font-mono whitespace-pre-wrap leading-relaxed">
+      <pre 
+        className={`px-4 py-4 text-foreground font-mono whitespace-pre-wrap leading-relaxed ${fitContent ? "w-fit" : ""}`}
+        style={{ fontSize: `${fontSize}px` }}
+      >
         {page.content}
       </pre>
     </div>
@@ -608,3 +634,26 @@ function PageListItem({
     </div>
   )
 }
+
+// type SongCoverImageProps = Omit<ImageProps, 'src' | 'alt'> & {
+//   coverUrl?: string
+//   songTitle: string
+// }
+
+// function SongCoverImage({ coverUrl, songTitle, ...props }: SongCoverImageProps) {
+//   if (coverUrl) {
+//     return (
+//       <Image
+//         {...props}
+//         src={coverUrl}
+//         alt={`Capa de ${songTitle}`}
+//       />
+//     )
+//   }
+    
+//   return (
+//     <div className="w-full h-full flex items-center justify-center bg-primary/10">
+//       <Music2 className="w-10 h-10 text-primary/50" />
+//     </div>
+//   )
+// }
