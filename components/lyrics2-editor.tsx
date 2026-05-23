@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback } from "react"
 import { Plus, Trash2, GripVertical, ChevronDown, Copy, Minus, Pencil, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -32,10 +32,8 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editingSectionContent, setEditingSectionContent] = useState("")
   const [selectedColorForNew, setSelectedColorForNew] = useState<SectionColorId>("blue")
-  
-  // Drag and drop state
-  const dragItem = useRef<number | null>(null)
-  const dragOverItem = useRef<number | null>(null)
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // Encontra o título base (sem número)
   const getBaseTitle = (title: string) => title.replace(/\s*\d+$/, "").trim()
@@ -45,24 +43,28 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
     return content.sections.filter(s => getBaseTitle(s.title) === baseTitle).length
   }, [content.sections])
 
-  // Renumera seções com o mesmo título base
+  // Renumera seções com o mesmo título base (mantém ordem original)
   const renumberSectionsWithBase = useCallback((sections: Lyrics2Section[], baseTitle: string): Lyrics2Section[] => {
     const matching = sections.filter(s => getBaseTitle(s.title) === baseTitle)
-    const others = sections.filter(s => getBaseTitle(s.title) !== baseTitle)
     
     if (matching.length === 0) return sections
     if (matching.length === 1) {
-      // Se só tem uma, remove o número
-      return [...others, { ...matching[0], title: baseTitle }]
+      // Se só tem uma, remove o número e mantém na posição original
+      return sections.map(s => 
+        getBaseTitle(s.title) === baseTitle 
+          ? { ...s, title: baseTitle }
+          : s
+      )
     }
     
-    // Se tem mais de uma, numera todas
-    const renumbered = matching.map((s, i) => ({
-      ...s,
-      title: `${baseTitle} ${i + 1}`
-    }))
-    
-    return [...others, ...renumbered]
+    // Se tem mais de uma, numera todas mantendo a ordem original
+    let counter = 1
+    return sections.map(s => {
+      if (getBaseTitle(s.title) === baseTitle) {
+        return { ...s, title: `${baseTitle} ${counter++}` }
+      }
+      return s
+    })
   }, [])
 
   // Obtém a cor para uma seção baseada no título base
@@ -183,20 +185,35 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
   // Remove seção
   const removeSection = useCallback((title: string) => {
     const baseTitle = getBaseTitle(title)
+    
+    // Obtém os títulos antigos das seções com esse base title (antes de remover)
+    const oldTitles = content.sections
+      .filter(s => getBaseTitle(s.title) === baseTitle && s.title !== title)
+      .map(s => s.title)
+    
+    // Remove a seção
     let newSections = content.sections.filter(s => s.title !== title)
     const newOrder = content.order.filter(item => item.title !== title)
     
     // Renumera as seções restantes com o mesmo título base
     newSections = renumberSectionsWithBase(newSections, baseTitle)
     
+    // Cria mapa de títulos antigos para novos
+    const newTitles = newSections
+      .filter(s => getBaseTitle(s.title) === baseTitle)
+      .map(s => s.title)
+    
+    const titleMap = new Map<string, string>()
+    oldTitles.forEach((oldTitle, i) => {
+      if (newTitles[i]) {
+        titleMap.set(oldTitle, newTitles[i])
+      }
+    })
+    
     // Atualiza ordem com títulos renumerados
     const updatedOrder = newOrder.map(item => {
-      const itemBase = getBaseTitle(item.title)
-      if (itemBase === baseTitle) {
-        const matchingSection = newSections.find(s => getBaseTitle(s.title) === itemBase)
-        if (matchingSection) {
-          return { ...item, title: matchingSection.title }
-        }
+      if (titleMap.has(item.title)) {
+        return { ...item, title: titleMap.get(item.title)! }
       }
       return item
     })
@@ -211,30 +228,41 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
   }, [content, onChange])
 
   // Drag and drop handlers
-  const handleDragStart = (index: number) => {
-    dragItem.current = index
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggingIndex(index)
+    e.dataTransfer.effectAllowed = "move"
   }
 
   const handleDragEnter = (index: number) => {
-    dragOverItem.current = index
+    if (draggingIndex === null) return
+    setDragOverIndex(index)
   }
 
-  const handleDragEnd = () => {
-    if (dragItem.current === null || dragOverItem.current === null) return
-    if (dragItem.current === dragOverItem.current) {
-      dragItem.current = null
-      dragOverItem.current = null
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggingIndex === null || draggingIndex === dropIndex) {
+      setDraggingIndex(null)
+      setDragOverIndex(null)
       return
     }
     
     const newOrder = [...content.order]
-    const [removed] = newOrder.splice(dragItem.current, 1)
-    newOrder.splice(dragOverItem.current, 0, removed)
+    const [removed] = newOrder.splice(draggingIndex, 1)
+    newOrder.splice(dropIndex, 0, removed)
     
     onChange({ ...content, order: newOrder })
-    
-    dragItem.current = null
-    dragOverItem.current = null
+    setDraggingIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null)
+    setDragOverIndex(null)
   }
 
   // Atualiza repetições de um item
@@ -379,7 +407,7 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                     >
                       <span className={cn("w-3 h-3 rounded-full", colors.dot)} />
-                      <span className="lowercase">novo {title.toLowerCase()}</span>
+                      <span>novo {title.toLowerCase()}</span>
                     </button>
                   )
                 })}
@@ -472,16 +500,24 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
             {content.order.map((item, index) => {
               const section = content.sections.find(s => s.title === item.title)
               const colors = getSectionColorById(section?.colorId)
+              const isDragging = draggingIndex === index
+              const isDragOver = dragOverIndex === index && draggingIndex !== index
               
               return (
                 <div
                   key={`order-${item.title}-${index}`}
                   draggable
-                  onDragStart={() => handleDragStart(index)}
+                  onDragStart={(e) => handleDragStart(e, index)}
                   onDragEnter={() => handleDragEnter(index)}
                   onDragEnd={handleDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                  className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border border-border group cursor-grab active:cursor-grabbing"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border group cursor-grab active:cursor-grabbing transition-all",
+                    isDragging && "opacity-50 scale-95",
+                    isDragOver && "border-primary bg-primary/10",
+                    !isDragging && !isDragOver && "bg-muted/50 border-border"
+                  )}
                 >
                   <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className={cn("w-3 h-3 rounded-full shrink-0", colors.dot)} />

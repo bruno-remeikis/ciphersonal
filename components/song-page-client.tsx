@@ -492,7 +492,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 onView={() => setActivePageId(activePageId === page.id ? null : page.id)}
                 onEdit={() => startEditingPage(page)}
                 onDelete={() => handleDeletePage(page.id)}
-                onSetMain={() => handleSetMain(page.id, page.type)}
+                onSetMain={() => handleToggleMain(page.id, page.type)}
               />
             ))}
           </div>
@@ -758,11 +758,18 @@ function Lyrics2Card({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {!isMain && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-amber-500" onClick={onSetMain} title="Marcar como principal">
-              <Star className="w-3.5 h-3.5" />
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn(
+              "w-7 h-7",
+              isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+            )} 
+            onClick={onSetMain} 
+            title={isMain ? "Remover dos principais" : "Marcar como principal"}
+          >
+            <Star className={cn("w-3.5 h-3.5", isMain && "fill-current")} />
+          </Button>
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
             <Pencil className="w-3.5 h-3.5" />
           </Button>
@@ -832,7 +839,7 @@ function Lyrics2Card({
           </div>
         </div>
       </div>
-      <div className="p-4">
+      <div className="overflow-hidden">
         <Lyrics2DisplayWithRef 
           ref={displayRef}
           content={parsedContent} 
@@ -911,11 +918,18 @@ function PageListItem({
         </div>
       </button>
       <div className="flex items-center gap-0.5 shrink-0">
-        {!page.isMain && (
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-amber-500" onClick={onSetMain} title="Marcar como principal">
-            <Star className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={cn(
+            "w-7 h-7",
+            page.isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+          )} 
+          onClick={onSetMain} 
+          title={page.isMain ? "Remover dos principais" : "Marcar como principal"}
+        >
+          <Star className={cn("w-3.5 h-3.5", page.isMain && "fill-current")} />
+        </Button>
         <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
           <Pencil className="w-3.5 h-3.5" />
         </Button>
