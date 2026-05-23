@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Plus, Trash2, GripVertical, ChevronDown, Copy } from "lucide-react"
+import { Plus, Trash2, GripVertical, ChevronDown, Copy, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Lyrics2Content, Lyrics2Section, Lyrics2OrderItem } from "@/lib/data"
@@ -60,11 +60,23 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
   }, [])
 
   // Adiciona nova seção
-  const addSection = useCallback((baseTitle: string, isRepeat: boolean = false) => {
+  const addSection = useCallback((baseTitle: string, isRepeat: boolean = false, repetitions: number = 1) => {
     if (isRepeat) {
-      // Apenas adiciona à ordem, não cria nova seção
-      const newOrder: Lyrics2OrderItem[] = [...content.order, { title: baseTitle, expanded: false }]
-      onChange({ ...content, order: newOrder })
+      // Verifica se a última seção na ordem é a mesma
+      const lastOrderItem = content.order[content.order.length - 1]
+      if (lastOrderItem && lastOrderItem.title === baseTitle) {
+        // Incrementa as repetições da última seção ao invés de adicionar nova
+        const newOrder = content.order.map((item, index) => 
+          index === content.order.length - 1 
+            ? { ...item, repetitions: (item.repetitions || 1) + 1 }
+            : item
+        )
+        onChange({ ...content, order: newOrder })
+      } else {
+        // Adiciona nova entrada na ordem
+        const newOrder: Lyrics2OrderItem[] = [...content.order, { title: baseTitle, expanded: false, repetitions }]
+        onChange({ ...content, order: newOrder })
+      }
     } else {
       // Cria nova seção
       let finalTitle = baseTitle
@@ -84,27 +96,37 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
       
       newSections.push({ title: finalTitle, content: "" })
       
+      // Verifica se a última seção na ordem tem o mesmo título base
+      const lastOrderItem = content.order[content.order.length - 1]
+      const lastOrderBaseTitle = lastOrderItem?.title.replace(/\s*\d+$/, "").trim()
+      const newBaseTitle = finalTitle.replace(/\s*\d+$/, "").trim()
+      
       // Atualiza order com o novo título
-      const newOrder: Lyrics2OrderItem[] = [
-        ...content.order.map(item => {
-          // Atualiza títulos renumerados na ordem também
-          const section = newSections.find(s => 
-            s.title.replace(/\s*\d+$/, "") === item.title.replace(/\s*\d+$/, "")
+      let newOrder: Lyrics2OrderItem[] = content.order.map(item => {
+        // Atualiza títulos renumerados na ordem também
+        const itemBaseTitle = item.title.replace(/\s*\d+$/, "").trim()
+        if (itemBaseTitle === newBaseTitle && existingSection) {
+          // Encontra o novo título correspondente
+          const matchingSection = newSections.find(s => 
+            s.title.replace(/\s*\d+$/, "").trim() === itemBaseTitle
           )
-          if (section && section.title !== item.title) {
-            // Encontra o novo título correspondente
-            const baseItemTitle = item.title.replace(/\s*\d+$/, "").trim()
-            const matchingSection = newSections.find(s => 
-              s.title.replace(/\s*\d+$/, "").trim() === baseItemTitle
-            )
-            if (matchingSection) {
-              return { ...item, title: matchingSection.title }
-            }
+          if (matchingSection && matchingSection.title !== item.title) {
+            return { ...item, title: matchingSection.title }
           }
-          return item
-        }),
-        { title: finalTitle, expanded: true }
-      ]
+        }
+        return item
+      })
+      
+      // Se a última seção tem o mesmo título base, incrementa repetições
+      if (lastOrderBaseTitle === newBaseTitle && lastOrderItem) {
+        newOrder = newOrder.map((item, index) => 
+          index === newOrder.length - 1 
+            ? { ...item, repetitions: (item.repetitions || 1) + 1 }
+            : item
+        )
+      } else {
+        newOrder.push({ title: finalTitle, expanded: true, repetitions: 1 })
+      }
       
       onChange({ sections: newSections, order: newOrder })
     }
@@ -146,6 +168,18 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
     const newOrder = [...content.order]
     const [removed] = newOrder.splice(fromIndex, 1)
     newOrder.splice(toIndex, 0, removed)
+    onChange({ ...content, order: newOrder })
+  }, [content, onChange])
+
+  // Atualiza repetições de um item
+  const updateRepetitions = useCallback((index: number, delta: number) => {
+    const newOrder = content.order.map((item, i) => {
+      if (i === index) {
+        const newReps = Math.max(1, (item.repetitions || 1) + delta)
+        return { ...item, repetitions: newReps }
+      }
+      return item
+    })
     onChange({ ...content, order: newOrder })
   }, [content, onChange])
 
@@ -279,7 +313,7 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
         <div className="flex flex-col gap-3 pt-4 border-t border-border">
           <h4 className="text-sm font-medium text-foreground">Ordem de exibição</h4>
           <p className="text-xs text-muted-foreground">
-            Arraste para reordenar. A primeira ocorrência de cada seção exibirá o conteúdo completo.
+            Arraste para reordenar. Use os botões +/- para ajustar repetições.
           </p>
           
           <div className="flex flex-col gap-1.5">
@@ -288,8 +322,33 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
                 key={`order-${item.title}-${index}`}
                 className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border border-border group"
               >
-                <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                <span className="flex-1 text-sm text-foreground">{item.title}</span>
+                <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab shrink-0" />
+                <span className="flex-1 text-sm text-foreground truncate">{item.title}</span>
+                
+                {/* Controle de repetições */}
+                <div className="flex items-center gap-1 bg-background rounded border border-border">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-6 h-6 rounded-r-none"
+                    onClick={() => updateRepetitions(index, -1)}
+                    disabled={(item.repetitions || 1) <= 1}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </Button>
+                  <span className="w-6 text-center text-xs font-medium text-foreground">
+                    {item.repetitions || 1}x
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-6 h-6 rounded-l-none"
+                    onClick={() => updateRepetitions(index, 1)}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
+                
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {index > 0 && (
                     <Button

@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import {
   ChevronLeft, ChevronRight, ListMusic, Plus, Pencil, Trash2,
   Star, FileText, Guitar, Check, X, ArrowLeft,
-  Music, MicVocal
+  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -20,7 +20,7 @@ import {
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useSettings } from "@/components/settings-provider"
-import { Lyrics2Display } from "@/components/lyrics2-display"
+import { Lyrics2DisplayWithRef, Lyrics2DisplayRef } from "@/components/lyrics2-display"
 import { Lyrics2Editor } from "@/components/lyrics2-editor"
 
 type SongPageClientProps = {
@@ -710,6 +710,8 @@ function Lyrics2Card({
   isMain: boolean
   fontSize?: number
 }) {
+  const [showMenu, setShowMenu] = useState(false)
+  const displayRef = useRef<Lyrics2DisplayRef>(null)
   const parsedContent = parseLyrics2Content(page.content)
   
   if (!parsedContent) {
@@ -743,13 +745,75 @@ function Lyrics2Card({
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
             <Pencil className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          
+          {/* Menu dropdown */}
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="w-7 h-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowMenu(!showMenu)}
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </Button>
+            
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-card border border-border rounded-lg shadow-lg py-1">
+                  <button
+                    onClick={() => {
+                      displayRef.current?.expandAll()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Expandir tudo
+                  </button>
+                  <button
+                    onClick={() => {
+                      displayRef.current?.collapseAll()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Colapsar tudo
+                  </button>
+                  <button
+                    onClick={() => {
+                      displayRef.current?.resetToDefault()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                    Padrão
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => {
+                      onDelete()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
       <div className="p-4">
-        <Lyrics2Display 
+        <Lyrics2DisplayWithRef 
+          ref={displayRef}
           content={parsedContent} 
           fontSize={fontSize}
           onOrderUpdate={onOrderUpdate}

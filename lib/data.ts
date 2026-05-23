@@ -9,6 +9,7 @@ export type Lyrics2Section = {
 export type Lyrics2OrderItem = {
   title: string
   expanded: boolean
+  repetitions: number // Número de repetições (1 = uma vez, 2 = 2x, etc.)
 }
 
 export type Lyrics2Content = {
@@ -23,6 +24,7 @@ export type Page = {
   type: PageType
   title: string
   content: string // Para lyrics e chords é string; para lyrics2 é JSON stringified de Lyrics2Content
+  lyrics2Data?: Lyrics2Content // Campo dedicado para dados lyrics2 (usado internamente)
   isMain: boolean
 }
 

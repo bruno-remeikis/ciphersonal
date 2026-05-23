@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Lyrics2Content, Lyrics2OrderItem } from "@/lib/data"
 
@@ -165,48 +164,205 @@ export function Lyrics2Display({ content, fontSize = 14, onOrderUpdate }: Lyrics
   }, [content.order, onOrderUpdate])
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Controles */}
-      <div className="flex items-center justify-end gap-2 flex-wrap">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          onClick={expandAll}
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-          Expandir tudo
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          onClick={collapseAll}
-        >
-          <Minimize2 className="w-3.5 h-3.5" />
-          Colapsar tudo
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          onClick={resetToDefault}
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Padrão
-        </Button>
-      </div>
-
+    <div className="flex flex-col gap-2">
       {/* Seções */}
+      {content.order.map((orderItem, index) => {
+        const isFirstOccurrence = firstOccurrenceIndices.get(index) ?? false
+        const isExpanded = expandedState[index]
+        const sectionContent = sectionMap.get(orderItem.title) || ""
+        const colors = getSectionColor(orderItem.title, customColorIndex)
+        const repetitions = orderItem.repetitions || 1
+        
+        // Se é primeira ocorrência: mostra content quando expandido, title quando colapsado
+        // Se não é primeira ocorrência: mostra title quando colapsado, content quando expandido
+        const showContent = isFirstOccurrence ? isExpanded : isExpanded
+        const showOnlyTitle = !showContent
+
+        return (
+          <div
+            key={`${orderItem.title}-${index}`}
+            className={cn(
+              "rounded-lg border transition-all duration-200",
+              colors.bg,
+              colors.border
+            )}
+          >
+            <button
+              onClick={() => toggleSection(index)}
+              className={cn(
+                "w-full flex items-center justify-between px-4 py-2.5 text-left",
+                "hover:opacity-80 transition-opacity"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-xs font-semibold px-2 py-0.5 rounded-full",
+                  colors.badge
+                )}>
+                  {orderItem.title}
+                </span>
+                {repetitions > 1 && (
+                  <span className={cn(
+                    "text-xs font-bold px-1.5 py-0.5 rounded",
+                    colors.text,
+                    "opacity-80"
+                  )}>
+                    {repetitions}x
+                  </span>
+                )}
+              </div>
+              {isExpanded ? (
+                <ChevronUp className={cn("w-4 h-4", colors.text)} />
+              ) : (
+                <ChevronDown className={cn("w-4 h-4", colors.text)} />
+              )}
+            </button>
+            
+            {showContent && sectionContent && (
+              <div className="px-4 pb-4">
+                <pre 
+                  className={cn(
+                    "whitespace-pre-wrap font-mono leading-relaxed",
+                    colors.text
+                  )}
+                  style={{ fontSize: `${fontSize}px` }}
+                >
+                  {sectionContent}
+                </pre>
+              </div>
+            )}
+            
+            {showOnlyTitle && !isFirstOccurrence && (
+              <div className="px-4 pb-3">
+                <span className={cn("text-sm italic", colors.text, "opacity-70")}>
+                  (clique para expandir)
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Exportar funções de controle para uso externo (no menu)
+export const lyrics2Controls = {
+  expandAll: Symbol('expandAll'),
+  collapseAll: Symbol('collapseAll'),
+  resetToDefault: Symbol('resetToDefault'),
+}
+
+export type Lyrics2DisplayRef = {
+  expandAll: () => void
+  collapseAll: () => void
+  resetToDefault: () => void
+}
+
+// Componente com ref para controle externo
+import { forwardRef, useImperativeHandle } from "react"
+
+export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2DisplayProps>(
+  function Lyrics2DisplayWithRef({ content, fontSize = 14, onOrderUpdate }, ref) {
+    // Estado local de expansão baseado em content.order
+    const [expandedState, setExpandedState] = useState<boolean[]>(() => 
+      content.order.map(item => item.expanded)
+    )
+
+    // Mapeia títulos de seção para seus conteúdos
+    const sectionMap = useMemo(() => {
+      const map = new Map<string, string>()
+      content.sections.forEach(section => {
+        map.set(section.title, section.content)
+      })
+      return map
+    }, [content.sections])
+
+    // Mapeia quais títulos já foram exibidos
+    const firstOccurrenceIndices = useMemo(() => {
+      const seen = new Set<string>()
+      const indices = new Map<number, boolean>()
+      
+      content.order.forEach((item, index) => {
+        if (!seen.has(item.title)) {
+          seen.add(item.title)
+          indices.set(index, true)
+        } else {
+          indices.set(index, false)
+        }
+      })
+      
+      return indices
+    }, [content.order])
+
+    const customColorIndex = useMemo(() => new Map<string, number>(), [])
+
+    const toggleSection = useCallback((index: number) => {
+      setExpandedState(prev => {
+        const newState = [...prev]
+        newState[index] = !newState[index]
+        
+        if (onOrderUpdate) {
+          const newOrder = content.order.map((item, i) => ({
+            ...item,
+            expanded: newState[i]
+          }))
+          onOrderUpdate(newOrder)
+        }
+        
+        return newState
+      })
+    }, [content.order, onOrderUpdate])
+
+    const expandAll = useCallback(() => {
+      setExpandedState(prev => prev.map(() => true))
+      if (onOrderUpdate) {
+        const newOrder = content.order.map(item => ({ ...item, expanded: true }))
+        onOrderUpdate(newOrder)
+      }
+    }, [content.order, onOrderUpdate])
+
+    const collapseAll = useCallback(() => {
+      setExpandedState(prev => prev.map(() => false))
+      if (onOrderUpdate) {
+        const newOrder = content.order.map(item => ({ ...item, expanded: false }))
+        onOrderUpdate(newOrder)
+      }
+    }, [content.order, onOrderUpdate])
+
+    const resetToDefault = useCallback(() => {
+      const seen = new Set<string>()
+      const defaultState = content.order.map(item => {
+        if (!seen.has(item.title)) {
+          seen.add(item.title)
+          return true
+        }
+        return false
+      })
+      
+      setExpandedState(defaultState)
+      if (onOrderUpdate) {
+        const newOrder = content.order.map((item, i) => ({ ...item, expanded: defaultState[i] }))
+        onOrderUpdate(newOrder)
+      }
+    }, [content.order, onOrderUpdate])
+
+    // Expõe as funções via ref
+    useImperativeHandle(ref, () => ({
+      expandAll,
+      collapseAll,
+      resetToDefault,
+    }), [expandAll, collapseAll, resetToDefault])
+
+    return (
       <div className="flex flex-col gap-2">
         {content.order.map((orderItem, index) => {
           const isFirstOccurrence = firstOccurrenceIndices.get(index) ?? false
           const isExpanded = expandedState[index]
           const sectionContent = sectionMap.get(orderItem.title) || ""
           const colors = getSectionColor(orderItem.title, customColorIndex)
+          const repetitions = orderItem.repetitions || 1
           
-          // Se é primeira ocorrência: mostra content quando expandido, title quando colapsado
-          // Se não é primeira ocorrência: mostra title quando colapsado, content quando expandido
           const showContent = isFirstOccurrence ? isExpanded : isExpanded
           const showOnlyTitle = !showContent
 
@@ -226,12 +382,23 @@ export function Lyrics2Display({ content, fontSize = 14, onOrderUpdate }: Lyrics
                   "hover:opacity-80 transition-opacity"
                 )}
               >
-                <span className={cn(
-                  "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  colors.badge
-                )}>
-                  {orderItem.title}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-xs font-semibold px-2 py-0.5 rounded-full",
+                    colors.badge
+                  )}>
+                    {orderItem.title}
+                  </span>
+                  {repetitions > 1 && (
+                    <span className={cn(
+                      "text-xs font-bold px-1.5 py-0.5 rounded",
+                      colors.text,
+                      "opacity-80"
+                    )}>
+                      {repetitions}x
+                    </span>
+                  )}
+                </div>
                 {isExpanded ? (
                   <ChevronUp className={cn("w-4 h-4", colors.text)} />
                 ) : (
@@ -264,6 +431,6 @@ export function Lyrics2Display({ content, fontSize = 14, onOrderUpdate }: Lyrics
           )
         })}
       </div>
-    </div>
-  )
-}
+    )
+  }
+)
