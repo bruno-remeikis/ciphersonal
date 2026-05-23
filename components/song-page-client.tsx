@@ -161,6 +161,20 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
     await persistPages(newPages)
   }
 
+  async function handleToggleMain(pageId: number, type: PageType) {
+    const page = song.pages.find(p => p.id === pageId)
+    if (!page) return
+    
+    const newPages = song.pages.map((p) => {
+      if (p.id === pageId) {
+        return { ...p, isMain: !p.isMain }
+      }
+      return p
+    })
+    setSong((prev) => ({ ...prev, pages: newPages }))
+    await persistPages(newPages)
+  }
+
   async function handleAddPage() {
     const id = Math.max(0, ...song.pages.map((p) => p.id)) + 1
     
@@ -316,7 +330,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                       page={mainChords}
                       onEdit={() => startEditingPage(mainChords)}
                       onDelete={() => handleDeletePage(mainChords.id)}
-                      onSetMain={() => handleSetMain(mainChords.id, "chords")}
+                      onSetMain={() => handleToggleMain(mainChords.id, "chords")}
                       isMain
                       fontSize={settings.sheetFontSize}
                       fitContent
@@ -330,7 +344,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                       page={mainLyrics}
                       onEdit={() => startEditingPage(mainLyrics)}
                       onDelete={() => handleDeletePage(mainLyrics.id)}
-                      onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
+                      onSetMain={() => handleToggleMain(mainLyrics.id, "lyrics")}
                       isMain
                       fontSize={settings.sheetFontSize}
                     />
@@ -345,7 +359,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 page={mainLyrics2}
                 onEdit={() => startEditingPage(mainLyrics2)}
                 onDelete={() => handleDeletePage(mainLyrics2.id)}
-                onSetMain={() => handleSetMain(mainLyrics2.id, "lyrics2")}
+                onSetMain={() => handleToggleMain(mainLyrics2.id, "lyrics2")}
                 onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(mainLyrics2.id, newOrder)}
                 isMain
                 fontSize={settings.sheetFontSize}
@@ -369,7 +383,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 page={activePage}
                 onEdit={() => startEditingPage(activePage)}
                 onDelete={() => handleDeletePage(activePage.id)}
-                onSetMain={() => handleSetMain(activePage.id, "lyrics2")}
+                onSetMain={() => handleToggleMain(activePage.id, "lyrics2")}
                 onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(activePage.id, newOrder)}
                 isMain={activePage.isMain}
                 fontSize={settings.sheetFontSize}
@@ -379,7 +393,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 page={activePage}
                 onEdit={() => startEditingPage(activePage)}
                 onDelete={() => handleDeletePage(activePage.id)}
-                onSetMain={() => handleSetMain(activePage.id, activePage.type)}
+                onSetMain={() => handleToggleMain(activePage.id, activePage.type)}
                 isMain={activePage.isMain}
                 fontSize={settings.sheetFontSize}
               />
@@ -670,11 +684,18 @@ function ContentCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {!isMain && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-amber-500" onClick={onSetMain} title="Marcar como principal">
-              <Star className="w-3.5 h-3.5" />
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn(
+              "w-7 h-7",
+              isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+            )} 
+            onClick={onSetMain} 
+            title={isMain ? "Remover dos principais" : "Marcar como principal"}
+          >
+            <Star className={cn("w-3.5 h-3.5", isMain && "fill-current")} />
+          </Button>
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
             <Pencil className="w-3.5 h-3.5" />
           </Button>
