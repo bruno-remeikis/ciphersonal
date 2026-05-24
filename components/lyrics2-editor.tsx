@@ -142,7 +142,8 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
         newOrder.push({ title: finalTitle, expanded: true, repetitions: 1 })
       }
       
-    onChange({ sections: newSections, order: newOrder })
+      onChange({ sections: newSections, order: newOrder })
+    }
     
     setShowAddMenu(false)
     setShowCustomInput(false)
