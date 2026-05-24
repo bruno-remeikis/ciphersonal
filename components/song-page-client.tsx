@@ -7,7 +7,7 @@ import Link from "next/link"
 import {
   ChevronLeft, ChevronRight, ListMusic, Plus, Pencil, Trash2,
   Star, FileText, Guitar, Check, X, ArrowLeft,
-  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw
+  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw, GripVertical
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -16,7 +16,8 @@ import useSWR, { mutate } from "swr"
 import { fetchSongs, fetchRepertoires, swrKeys, updateSong, deleteSong, recordLastSeen } from "@/lib/api"
 import {
   Song, Page, Repertoire, PageType, pageTypeLabels,
-  parseLyrics2Content, stringifyLyrics2Content, Lyrics2Content, Lyrics2OrderItem
+  parseLyrics2Content, stringifyLyrics2Content, Lyrics2Content, Lyrics2OrderItem,
+  PageLayoutItem
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useSettings } from "@/components/settings-provider"
@@ -54,11 +55,34 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  
+  // Layout das folhas (ordem e largura)
+  const [pageLayout, setPageLayout] = useState<PageLayoutItem[]>(() => {
+    // Inicializa com todas as páginas principais em largura total
+    const mainPages = initialSong.pages.filter(p => p.isMain)
+    return mainPages.map(p => ({ pageId: p.id, width: "full" as const }))
+  })
+  const [draggingPageIndex, setDraggingPageIndex] = useState<number | null>(null)
+  const [dragOverPageIndex, setDragOverPageIndex] = useState<number | null>(null)
 
   // Record last seen
   useEffect(() => {
     recordLastSeen(song.id, "song")
   }, [song.id])
+  
+  // Atualiza layout quando páginas principais mudam
+  useEffect(() => {
+    const mainPages = song.pages.filter(p => p.isMain)
+    setPageLayout(prev => {
+      // Mantém itens existentes que ainda são principais
+      const existing = prev.filter(item => mainPages.some(p => p.id === item.pageId))
+      // Adiciona novos principais que não estão no layout
+      const newItems = mainPages
+        .filter(p => !existing.some(item => item.pageId === p.id))
+        .map(p => ({ pageId: p.id, width: "full" as const }))
+      return [...existing, ...newItems]
+    })
+  }, [song.pages])
 
   // Fetch all songs and repertoires for navigation context
   const { data: allSongs = [] } = useSWR(swrKeys.songs(), () => fetchSongs())
@@ -85,6 +109,59 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
   const mainLyrics = song.pages.find((p) => p.type === "lyrics" && p.isMain)
   const mainLyrics2 = song.pages.find((p) => p.type === "lyrics2" && p.isMain)
   const mainChords = song.pages.find((p) => p.type === "chords" && p.isMain)
+  
+  // Páginas principais ordenadas pelo layout
+  const mainPagesOrdered = pageLayout
+    .map(item => song.pages.find(p => p.id === item.pageId && p.isMain))
+    .filter((p): p is Page => p !== undefined)
+
+  // Drag and drop handlers para layout de folhas
+  const handlePageDragStart = (e: React.DragEvent, index: number) => {
+    setDraggingPageIndex(index)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handlePageDragEnter = (index: number) => {
+    if (draggingPageIndex === null) return
+    setDragOverPageIndex(index)
+  }
+
+  const handlePageDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+  }
+
+  const handlePageDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggingPageIndex === null || draggingPageIndex === dropIndex) {
+      setDraggingPageIndex(null)
+      setDragOverPageIndex(null)
+      return
+    }
+    
+    setPageLayout(prev => {
+      const newLayout = [...prev]
+      const [removed] = newLayout.splice(draggingPageIndex, 1)
+      newLayout.splice(dropIndex, 0, removed)
+      return newLayout
+    })
+    setDraggingPageIndex(null)
+    setDragOverPageIndex(null)
+  }
+
+  const handlePageDragEnd = () => {
+    setDraggingPageIndex(null)
+    setDragOverPageIndex(null)
+  }
+
+  // Toggle largura da folha (full <-> half)
+  const togglePageWidth = (pageId: number) => {
+    setPageLayout(prev => prev.map(item => 
+      item.pageId === pageId 
+        ? { ...item, width: item.width === "full" ? "half" : "full" }
+        : item
+    ))
+  }
 
   // Handler para atualizar order do lyrics2 (estado de expandido/colapsado)
   async function handleLyrics2OrderUpdate(pageId: number, newOrder: Lyrics2OrderItem[]) {
@@ -317,54 +394,76 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
           </div>
         </div>
 
-        {/* Main content: lyrics + lyrics2 + chords */}
-        {!activePage && (
-          <div className="flex flex-col gap-4">
-            {/* Row 1: Chords + Lyrics (Texto) */}
-            {(mainChords || mainLyrics) && (
-              <div className="flex flex-col md:flex-row gap-4">
-                {/* Chords - appears first on mobile, shrinks to content on desktop */}
-                {mainChords && (
-                  <div className="md:shrink-0 md:w-auto md:max-w-[50%]">
-                    <ContentCard
-                      page={mainChords}
-                      onEdit={() => startEditingPage(mainChords)}
-                      onDelete={() => handleDeletePage(mainChords.id)}
-                      onSetMain={() => handleToggleMain(mainChords.id, "chords")}
+        {/* Main content: folhas principais com layout configurável */}
+        {!activePage && mainPagesOrdered.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mainPagesOrdered.map((page, index) => {
+              const layoutItem = pageLayout.find(item => item.pageId === page.id)
+              const width = layoutItem?.width || "full"
+              const isDragging = draggingPageIndex === index
+              const isDragOver = dragOverPageIndex === index && draggingPageIndex !== index
+              
+              return (
+                <div
+                  key={page.id}
+                  draggable
+                  onDragStart={(e) => handlePageDragStart(e, index)}
+                  onDragEnter={() => handlePageDragEnter(index)}
+                  onDragEnd={handlePageDragEnd}
+                  onDragOver={handlePageDragOver}
+                  onDrop={(e) => handlePageDrop(e, index)}
+                  className={cn(
+                    "relative transition-all",
+                    width === "full" && "md:col-span-2",
+                    isDragging && "opacity-50 scale-[0.98]",
+                    isDragOver && "ring-2 ring-primary ring-offset-2"
+                  )}
+                >
+                  {/* Controles de layout */}
+                  <div className="absolute -top-2 -right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="w-6 h-6 rounded-full shadow-md opacity-70 hover:opacity-100"
+                      onClick={() => togglePageWidth(page.id)}
+                      title={width === "full" ? "Reduzir para meia largura" : "Expandir para largura total"}
+                    >
+                      {width === "full" ? (
+                        <Minimize2 className="w-3 h-3" />
+                      ) : (
+                        <Maximize2 className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* Handle de drag */}
+                  <div className="absolute top-2 left-2 z-10 cursor-grab active:cursor-grabbing opacity-30 hover:opacity-70 transition-opacity">
+                    <GripVertical className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  
+                  {page.type === "lyrics2" ? (
+                    <Lyrics2Card
+                      page={page}
+                      onEdit={() => startEditingPage(page)}
+                      onDelete={() => handleDeletePage(page.id)}
+                      onSetMain={() => handleToggleMain(page.id, "lyrics2")}
+                      onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(page.id, newOrder)}
                       isMain
                       fontSize={settings.sheetFontSize}
-                      fitContent
                     />
-                  </div>
-                )}
-                {/* Lyrics (Texto) - takes remaining space */}
-                {mainLyrics && (
-                  <div className="flex-1 min-w-0">
+                  ) : (
                     <ContentCard
-                      page={mainLyrics}
-                      onEdit={() => startEditingPage(mainLyrics)}
-                      onDelete={() => handleDeletePage(mainLyrics.id)}
-                      onSetMain={() => handleToggleMain(mainLyrics.id, "lyrics")}
+                      page={page}
+                      onEdit={() => startEditingPage(page)}
+                      onDelete={() => handleDeletePage(page.id)}
+                      onSetMain={() => handleToggleMain(page.id, page.type)}
                       isMain
                       fontSize={settings.sheetFontSize}
                     />
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Row 2: Lyrics2 (Letra com seções) */}
-            {mainLyrics2 && (
-              <Lyrics2Card
-                page={mainLyrics2}
-                onEdit={() => startEditingPage(mainLyrics2)}
-                onDelete={() => handleDeletePage(mainLyrics2.id)}
-                onSetMain={() => handleToggleMain(mainLyrics2.id, "lyrics2")}
-                onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(mainLyrics2.id, newOrder)}
-                isMain
-                fontSize={settings.sheetFontSize}
-              />
-            )}
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 

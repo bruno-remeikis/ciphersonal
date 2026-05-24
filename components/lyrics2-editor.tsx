@@ -10,16 +10,6 @@ import { SECTION_COLORS, getSectionColorById, SectionColorId } from "@/lib/data"
 // Opções pré-definidas de seção
 const PREDEFINED_SECTIONS = ["Verso", "Refrão", "Pré-Refrão", "Ponte", "Intro", "Outro"]
 
-// Cores padrão atribuídas por tipo de seção
-const DEFAULT_SECTION_COLORS: Record<string, SectionColorId> = {
-  "Verso": "blue",
-  "Refrão": "amber",
-  "Pré-Refrão": "purple",
-  "Ponte": "emerald",
-  "Intro": "rose",
-  "Outro": "slate",
-}
-
 type Lyrics2EditorProps = {
   content: Lyrics2Content
   onChange: (content: Lyrics2Content) => void
@@ -67,19 +57,19 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
     })
   }, [])
 
-  // Obtém a cor para uma seção baseada no título base
-  const getDefaultColorForSection = useCallback((baseTitle: string): SectionColorId => {
-    // Verifica se existe uma seção com esse título base
-    const existing = content.sections.find(s => getBaseTitle(s.title) === baseTitle)
-    if (existing?.colorId) return existing.colorId
+  // Obtém a próxima cor disponível (que ainda não foi usada, ou repete se todas já foram usadas)
+  const getNextAvailableColor = useCallback((): SectionColorId => {
+    const usedColors = new Set(content.sections.map(s => s.colorId).filter(Boolean))
     
-    // Usa cor padrão por tipo
-    if (DEFAULT_SECTION_COLORS[baseTitle]) return DEFAULT_SECTION_COLORS[baseTitle]
+    // Primeiro tenta encontrar uma cor não usada
+    for (const color of SECTION_COLORS) {
+      if (!usedColors.has(color.id)) {
+        return color.id
+      }
+    }
     
-    // Atribui uma cor baseada no número de seções únicas
-    const uniqueBases = new Set(content.sections.map(s => getBaseTitle(s.title)))
-    const colorIndex = uniqueBases.size % SECTION_COLORS.length
-    return SECTION_COLORS[colorIndex].id
+    // Se todas foram usadas, retorna a primeira cor disponível
+    return SECTION_COLORS[0].id
   }, [content.sections])
 
   // Adiciona nova seção
@@ -111,9 +101,9 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
         onChange({ ...content, order: newOrder })
       }
     } else {
-      // Cria nova seção
+      // Cria nova seção - usa cor fornecida ou obtém próxima disponível
       const existingCount = countSectionsWithBase(baseTitle)
-      const finalColor = colorId || getDefaultColorForSection(baseTitle)
+      const finalColor = colorId || getNextAvailableColor()
       
       let newSections = [...content.sections]
       let finalTitle = baseTitle
@@ -152,13 +142,12 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
         newOrder.push({ title: finalTitle, expanded: true, repetitions: 1 })
       }
       
-      onChange({ sections: newSections, order: newOrder })
-    }
+    onChange({ sections: newSections, order: newOrder })
     
     setShowAddMenu(false)
     setShowCustomInput(false)
     setCustomTitle("")
-  }, [content, onChange, countSectionsWithBase, getDefaultColorForSection, renumberSectionsWithBase])
+  }, [content, onChange, countSectionsWithBase, getNextAvailableColor, renumberSectionsWithBase])
 
   // Adiciona seção personalizada
   const addCustomSection = useCallback(() => {
@@ -397,20 +386,16 @@ export function Lyrics2Editor({ content, onChange }: Lyrics2EditorProps) {
                 <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border mb-1">
                   Nova seção
                 </div>
-                {PREDEFINED_SECTIONS.map((title) => {
-                  const colorId = getDefaultColorForSection(title)
-                  const colors = getSectionColorById(colorId)
-                  return (
+                {PREDEFINED_SECTIONS.map((title) => (
                     <button
                       key={title}
                       onClick={() => addSection(title)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                     >
-                      <span className={cn("w-3 h-3 rounded-full", colors.dot)} />
+                      <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                       <span>novo {title.toLowerCase()}</span>
                     </button>
-                  )
-                })}
+                  ))}
                 
                 {!showCustomInput ? (
                   <button

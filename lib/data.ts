@@ -38,6 +38,12 @@ export type Lyrics2Content = {
 
 export type PageType = "lyrics" | "lyrics2" | "chords"
 
+// Layout de folha na grade (para organização visual)
+export type PageLayoutItem = {
+  pageId: number
+  width: "full" | "half" // "full" = 2 colunas, "half" = 1 coluna
+}
+
 export type Page = {
   id: number
   type: PageType

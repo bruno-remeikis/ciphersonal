@@ -127,7 +127,8 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
               key={`${orderItem.title}-${index}`}
               className={cn(
                 "transition-all duration-200",
-                colors.bg
+                colors.bg,
+                index > 0 && "border-t border-border/50"
               )}
             >
               <button
