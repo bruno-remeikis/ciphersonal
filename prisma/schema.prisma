@@ -25,11 +25,12 @@ model Song {
 }
 
 type Page {
-  id      Int
-  type    String // "lyrics" | "chords"
-  title   String
-  content String
-  isMain  Boolean
+  id          Int
+  type        String // "lyrics" | "lyrics2" | "chords"
+  title       String
+  content     String
+  lyrics2Data Json?  // Objeto JSON para dados lyrics2 (sections + order com repetitions)
+  isMain      Boolean
 }
 
 model Artist {

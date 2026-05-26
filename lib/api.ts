@@ -1,6 +1,11 @@
-import type { Song, Artist, Repertoire, Page } from "@/lib/data"
+import type { 
+  Song, Artist, Repertoire, Page, PageType,
+  Lyrics2Content, Lyrics2Section, Lyrics2OrderItem
+} from "@/lib/data"
+import { parseLyrics2Content, stringifyLyrics2Content, pageTypeLabels } from "@/lib/data"
 
-export type { Song, Artist, Repertoire, Page }
+export type { Song, Artist, Repertoire, Page, PageType, Lyrics2Content, Lyrics2Section, Lyrics2OrderItem }
+export { parseLyrics2Content, stringifyLyrics2Content, pageTypeLabels }
 
 export type Genre = {
   name: string

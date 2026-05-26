@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import {
   ChevronLeft, ChevronRight, ListMusic, Plus, Pencil, Trash2,
   Star, FileText, Guitar, Check, X, ArrowLeft,
-  Music
+  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -15,10 +15,13 @@ import { Footer } from "@/components/footer"
 import useSWR, { mutate } from "swr"
 import { fetchSongs, fetchRepertoires, swrKeys, updateSong, deleteSong, recordLastSeen } from "@/lib/api"
 import {
-  Song, Page, Repertoire,
+  Song, Page, Repertoire, PageType, pageTypeLabels,
+  parseLyrics2Content, stringifyLyrics2Content, Lyrics2Content, Lyrics2OrderItem
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useSettings } from "@/components/settings-provider"
+import { Lyrics2DisplayWithRef, Lyrics2DisplayRef } from "@/components/lyrics2-display"
+import { Lyrics2Editor } from "@/components/lyrics2-editor"
 
 type SongPageClientProps = {
   song: Song
@@ -35,10 +38,18 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
   const [editingPage, setEditingPage] = useState<Page | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
   const [newPage, setNewPage] = useState<Omit<Page, "id">>({
-    type: "lyrics",
+    type: "lyrics" as PageType,
     title: "",
     content: "",
     isMain: false,
+  })
+  const [newLyrics2Content, setNewLyrics2Content] = useState<Lyrics2Content>({
+    sections: [],
+    order: []
+  })
+  const [editingLyrics2Content, setEditingLyrics2Content] = useState<Lyrics2Content>({
+    sections: [],
+    order: []
   })
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -70,9 +81,27 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
   const prevSong = currentIndex > 0 ? contextSongs[currentIndex - 1] : null
   const nextSong = currentIndex !== -1 && currentIndex < contextSongs.length - 1 ? contextSongs[currentIndex + 1] : null
 
-  // Páginas principal de letra e acordes
+  // Páginas principal de letra (texto), lyrics2 e acordes
   const mainLyrics = song.pages.find((p) => p.type === "lyrics" && p.isMain)
+  const mainLyrics2 = song.pages.find((p) => p.type === "lyrics2" && p.isMain)
   const mainChords = song.pages.find((p) => p.type === "chords" && p.isMain)
+
+  // Handler para atualizar order do lyrics2 (estado de expandido/colapsado)
+  async function handleLyrics2OrderUpdate(pageId: number, newOrder: Lyrics2OrderItem[]) {
+    const page = song.pages.find(p => p.id === pageId)
+    if (!page || page.type !== "lyrics2") return
+    
+    const parsed = parseLyrics2Content(page.content)
+    if (!parsed) return
+    
+    const updatedContent: Lyrics2Content = { ...parsed, order: newOrder }
+    const newPages = song.pages.map(p => 
+      p.id === pageId ? { ...p, content: JSON.stringify(updatedContent) } : p
+    )
+    
+    setSong(prev => ({ ...prev, pages: newPages }))
+    await persistPages(newPages)
+  }
 
   const activePage = activePageId != null ? song.pages.find((p) => p.id === activePageId) : null
 
@@ -97,15 +126,34 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
     await persistPages(newPages)
   }
 
+  // Helper para iniciar edição de uma página
+  function startEditingPage(page: Page) {
+    setEditingPage({ ...page })
+    if (page.type === "lyrics2") {
+      const parsed = parseLyrics2Content(page.content)
+      if (parsed) {
+        setEditingLyrics2Content(parsed)
+      }
+    }
+  }
+
   async function handleSaveEdit() {
     if (!editingPage) return
-    const newPages = song.pages.map((p) => (p.id === editingPage.id ? editingPage : p))
+    
+    // Para lyrics2, salva o JSON stringified do conteúdo
+    const contentToSave = editingPage.type === "lyrics2" 
+      ? stringifyLyrics2Content(editingLyrics2Content)
+      : editingPage.content
+    
+    const pageToSave = { ...editingPage, content: contentToSave }
+    const newPages = song.pages.map((p) => (p.id === editingPage.id ? pageToSave : p))
     setSong((prev) => ({ ...prev, pages: newPages }))
     setEditingPage(null)
+    setEditingLyrics2Content({ sections: [], order: [] })
     await persistPages(newPages)
   }
 
-  async function handleSetMain(pageId: number, type: "lyrics" | "chords") {
+  async function handleSetMain(pageId: number, type: PageType) {
     const newPages = song.pages.map((p) =>
       p.type === type ? { ...p, isMain: p.id === pageId } : p
     )
@@ -113,12 +161,33 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
     await persistPages(newPages)
   }
 
+  async function handleToggleMain(pageId: number, type: PageType) {
+    const page = song.pages.find(p => p.id === pageId)
+    if (!page) return
+    
+    const newPages = song.pages.map((p) => {
+      if (p.id === pageId) {
+        return { ...p, isMain: !p.isMain }
+      }
+      return p
+    })
+    setSong((prev) => ({ ...prev, pages: newPages }))
+    await persistPages(newPages)
+  }
+
   async function handleAddPage() {
     const id = Math.max(0, ...song.pages.map((p) => p.id)) + 1
-    const added: Page = { ...newPage, id }
+    
+    // Para lyrics2, o content é o JSON stringified do Lyrics2Content
+    const content = newPage.type === "lyrics2" 
+      ? stringifyLyrics2Content(newLyrics2Content)
+      : newPage.content
+    
+    const added: Page = { ...newPage, id, content }
     const newPages = [...song.pages, added]
     setSong((prev) => ({ ...prev, pages: newPages }))
-    setNewPage({ type: "lyrics", title: "", content: "", isMain: false })
+    setNewPage({ type: "lyrics" as PageType, title: "", content: "", isMain: false })
+    setNewLyrics2Content({ sections: [], order: [] })
     setIsAddingPage(false)
     await persistPages(newPages)
   }
@@ -248,37 +317,53 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
           </div>
         </div>
 
-        {/* Main content: lyrics + chords */}
+        {/* Main content: lyrics + lyrics2 + chords */}
         {!activePage && (
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Chords - appears first on mobile, shrinks to content on desktop */}
-            {mainChords && (
-              <div className="md:shrink-0 md:w-auto md:max-w-[50%]">
-                <ContentCard
-                  page={mainChords}
-                  onEdit={() => setEditingPage({ ...mainChords })}
-                  onDelete={() => handleDeletePage(mainChords.id)}
-                  onSetMain={() => handleSetMain(mainChords.id, "chords")}
-                  isMain
-                  fontSize={settings.sheetFontSize}
-                  fitContent
-                />
-              </div>
-            )}
-            {/* Lyrics - takes remaining space */}
-            {mainLyrics && (
-              <div className="flex-1 min-w-0">
-                <ContentCard
-                  page={mainLyrics}
-                  onEdit={() => setEditingPage({ ...mainLyrics })}
-                  onDelete={() => handleDeletePage(mainLyrics.id)}
-                  onSetMain={() => handleSetMain(mainLyrics.id, "lyrics")}
-                  isMain
-                  fontSize={settings.sheetFontSize}
-                />
-              </div>
-            )}
-          </div>
+          // <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-[auto_1fr] gap-4">
+              {/* Chords - appears first on mobile, shrinks to content on desktop */}
+              {mainChords && (
+                <div className="last:col-span-full">
+                  <ContentCard
+                    page={mainChords}
+                    onEdit={() => startEditingPage(mainChords)}
+                    onDelete={() => handleDeletePage(mainChords.id)}
+                    onSetMain={() => handleToggleMain(mainChords.id, "chords")}
+                    isMain
+                    fontSize={settings.sheetFontSize}
+                    fitContent
+                  />
+                </div>
+              )}
+              {/* Lyrics2 (Letra) - takes remaining space */}
+              {mainLyrics2 && (
+                <div className="last:col-span-full">
+                  <Lyrics2Card
+                    page={mainLyrics2}
+                    onEdit={() => startEditingPage(mainLyrics2)}
+                    onDelete={() => handleDeletePage(mainLyrics2.id)}
+                    onSetMain={() => handleToggleMain(mainLyrics2.id, "lyrics2")}
+                    onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(mainLyrics2.id, newOrder)}
+                    isMain
+                    fontSize={settings.sheetFontSize}
+                  />
+                </div>
+              )}
+              {/* Lyrics (Texto) - takes remaining space */}
+              {mainLyrics && (
+                <div className="flex-1 min-w-0 last:col-span-full">
+                  <ContentCard
+                    page={mainLyrics}
+                    onEdit={() => startEditingPage(mainLyrics)}
+                    onDelete={() => handleDeletePage(mainLyrics.id)}
+                    onSetMain={() => handleToggleMain(mainLyrics.id, "lyrics")}
+                    isMain
+                    fontSize={settings.sheetFontSize}
+                  />
+                </div>
+              )}
+            </div>
+          // </div>
         )}
 
         {/* Active non-main page view */}
@@ -291,14 +376,26 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 Fechar
               </Button>
             </div>
-            <ContentCard
-              page={activePage}
-              onEdit={() => setEditingPage({ ...activePage })}
-              onDelete={() => handleDeletePage(activePage.id)}
-              onSetMain={() => handleSetMain(activePage.id, activePage.type)}
-              isMain={activePage.isMain}
-              fontSize={settings.sheetFontSize}
-            />
+            {activePage.type === "lyrics2" ? (
+              <Lyrics2Card
+                page={activePage}
+                onEdit={() => startEditingPage(activePage)}
+                onDelete={() => handleDeletePage(activePage.id)}
+                onSetMain={() => handleToggleMain(activePage.id, "lyrics2")}
+                onOrderUpdate={(newOrder) => handleLyrics2OrderUpdate(activePage.id, newOrder)}
+                isMain={activePage.isMain}
+                fontSize={settings.sheetFontSize}
+              />
+            ) : (
+              <ContentCard
+                page={activePage}
+                onEdit={() => startEditingPage(activePage)}
+                onDelete={() => handleDeletePage(activePage.id)}
+                onSetMain={() => handleToggleMain(activePage.id, activePage.type)}
+                isMain={activePage.isMain}
+                fontSize={settings.sheetFontSize}
+              />
+            )}
           </div>
         )}
 
@@ -333,25 +430,45 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 />
                 <select
                   value={newPage.type}
-                  onChange={(e) => setNewPage((p) => ({ ...p, type: e.target.value as "lyrics" | "chords" }))}
+                  onChange={(e) => setNewPage((p) => ({ ...p, type: e.target.value as PageType }))}
                   className="h-9 px-2 rounded-md border border-border bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                  <option value="lyrics">Letra</option>
+                  <option value="lyrics">Texto</option>
+                  <option value="lyrics2">Letra</option>
                   <option value="chords">Acordes</option>
                 </select>
               </div>
-              <textarea
-                placeholder="Conteúdo..."
-                value={newPage.content}
-                onChange={(e) => setNewPage((p) => ({ ...p, content: e.target.value }))}
-                rows={4}
-                className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none font-mono"
-              />
+              
+              {/* Editor de conteúdo - muda conforme o tipo */}
+              {newPage.type === "lyrics2" ? (
+                <div className="border border-border rounded-lg p-3 bg-card">
+                  <Lyrics2Editor 
+                    content={newLyrics2Content}
+                    onChange={setNewLyrics2Content}
+                  />
+                </div>
+              ) : (
+                <textarea
+                  placeholder="Conteúdo..."
+                  value={newPage.content}
+                  onChange={(e) => setNewPage((p) => ({ ...p, content: e.target.value }))}
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none font-mono"
+                />
+              )}
+              
               <div className="flex items-center gap-2 justify-end">
-                <Button variant="ghost" size="sm" onClick={() => setIsAddingPage(false)}>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setIsAddingPage(false)
+                  setNewLyrics2Content({ sections: [], order: [] })
+                }}>
                   Cancelar
                 </Button>
-                <Button size="sm" onClick={handleAddPage} disabled={!newPage.title.trim()}>
+                <Button 
+                  size="sm" 
+                  onClick={handleAddPage} 
+                  disabled={!newPage.title.trim() || (newPage.type === "lyrics2" && newLyrics2Content.sections.length === 0)}
+                >
                   <Plus className="w-3.5 h-3.5 mr-1" />
                   Criar página
                 </Button>
@@ -371,9 +488,9 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 page={page}
                 isActive={activePageId === page.id}
                 onView={() => setActivePageId(activePageId === page.id ? null : page.id)}
-                onEdit={() => setEditingPage({ ...page })}
+                onEdit={() => startEditingPage(page)}
                 onDelete={() => handleDeletePage(page.id)}
-                onSetMain={() => handleSetMain(page.id, page.type)}
+                onSetMain={() => handleToggleMain(page.id, page.type)}
               />
             ))}
           </div>
@@ -440,21 +557,37 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
               />
               <select
                 value={editingPage.type}
-                onChange={(e) => setEditingPage((p) => p ? { ...p, type: e.target.value as "lyrics" | "chords" } : p)}
+                onChange={(e) => setEditingPage((p) => p ? { ...p, type: e.target.value as PageType } : p)}
                 className="h-9 px-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
-                <option value="lyrics">Letra</option>
+                <option value="lyrics">Texto</option>
+                <option value="lyrics2">Letra</option>
                 <option value="chords">Acordes</option>
               </select>
             </div>
-            <textarea
-              value={editingPage.content}
-              onChange={(e) => setEditingPage((p) => p ? { ...p, content: e.target.value } : p)}
-              rows={8}
-              className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none font-mono"
-            />
+            
+            {/* Editor de conteúdo - muda conforme o tipo */}
+            {editingPage.type === "lyrics2" ? (
+              <div className="border border-border rounded-lg p-3 bg-background max-h-96 overflow-y-auto">
+                <Lyrics2Editor 
+                  content={editingLyrics2Content}
+                  onChange={setEditingLyrics2Content}
+                />
+              </div>
+            ) : (
+              <textarea
+                value={editingPage.content}
+                onChange={(e) => setEditingPage((p) => p ? { ...p, content: e.target.value } : p)}
+                rows={8}
+                className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none font-mono"
+              />
+            )}
+            
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setEditingPage(null)}>Cancelar</Button>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setEditingPage(null)
+                setEditingLyrics2Content({ sections: [], order: [] })
+              }}>Cancelar</Button>
               <Button size="sm" onClick={handleSaveEdit}>
                 <Check className="w-3.5 h-3.5 mr-1" />
                 Salvar
@@ -526,17 +659,21 @@ function ContentCard({
   fontSize?: number
   fitContent?: boolean
 }) {
-  const isLyrics = page.type === "lyrics"
+  const getIcon = () => {
+    switch (page.type) {
+      case "lyrics": return <FileText className="w-4 h-4 text-primary" />
+      case "lyrics2": return <MicVocal className="w-4 h-4 text-primary" />
+      case "chords": return <Guitar className="w-4 h-4 text-primary" />
+    }
+  }
+  
   return (
     <div className={`rounded-xl border border-border bg-card overflow-hidden ${fitContent ? "h-fit" : ""}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
-          {isLyrics ? (
-            <FileText className="w-4 h-4 text-primary" />
-          ) : (
-            <Guitar className="w-4 h-4 text-primary" />
-          )}
+          {getIcon()}
           <span className="text-sm font-semibold text-foreground">{page.title}</span>
+          <span className="text-xs text-muted-foreground">({pageTypeLabels[page.type]})</span>
           {isMain && (
             <span className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full">
               <Star className="w-2.5 h-2.5" />
@@ -545,11 +682,18 @@ function ContentCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {!isMain && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-amber-500" onClick={onSetMain} title="Marcar como principal">
-              <Star className="w-3.5 h-3.5" />
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn(
+              "w-7 h-7",
+              isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+            )} 
+            onClick={onSetMain} 
+            title={isMain ? "Remover dos principais" : "Marcar como principal"}
+          >
+            <Star className={cn("w-3.5 h-3.5", isMain && "fill-current")} />
+          </Button>
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
             <Pencil className="w-3.5 h-3.5" />
           </Button>
@@ -564,6 +708,151 @@ function ContentCard({
       >
         {page.content}
       </pre>
+    </div>
+  )
+}
+
+function Lyrics2Card({
+  page,
+  onEdit,
+  onDelete,
+  onSetMain,
+  onOrderUpdate,
+  isMain,
+  fontSize = 14,
+}: {
+  page: Page
+  onEdit: () => void
+  onDelete: () => void
+  onSetMain: () => void
+  onOrderUpdate: (newOrder: Lyrics2OrderItem[]) => void
+  isMain: boolean
+  fontSize?: number
+}) {
+  const [showMenu, setShowMenu] = useState(false)
+  const displayRef = useRef<Lyrics2DisplayRef>(null)
+  const parsedContent = parseLyrics2Content(page.content)
+  
+  if (!parsedContent) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">Conteúdo inválido para este tipo de página.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+        <div className="flex items-center gap-2">
+          <MicVocal className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-foreground">{page.title}</span>
+          <span className="text-xs text-muted-foreground">(Letra)</span>
+          {isMain && (
+            <span className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full">
+              <Star className="w-2.5 h-2.5" />
+              Principal
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn(
+              "w-7 h-7",
+              isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+            )} 
+            onClick={onSetMain} 
+            title={isMain ? "Remover dos principais" : "Marcar como principal"}
+          >
+            <Star className={cn("w-3.5 h-3.5", isMain && "fill-current")} />
+          </Button>
+          
+          {/* Menu dropdown */}
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="w-7 h-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowMenu(!showMenu)}
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </Button>
+            
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-card border border-border rounded-lg shadow-lg py-1">
+                  <button
+                    onClick={() => {
+                      displayRef.current?.expandAll()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Expandir tudo
+                  </button>
+                  <button
+                    onClick={() => {
+                      displayRef.current?.collapseAll()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Colapsar tudo
+                  </button>
+                  <button
+                    onClick={() => {
+                      displayRef.current?.resetToDefault()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                    Padrão
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => {
+                      displayRef.current?.resetToDefault()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                    Editar
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => {
+                      onDelete()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="overflow-hidden">
+        <Lyrics2DisplayWithRef 
+          ref={displayRef}
+          content={parsedContent} 
+          fontSize={fontSize}
+          onOrderUpdate={onOrderUpdate}
+        />
+      </div>
     </div>
   )
 }
@@ -583,7 +872,27 @@ function PageListItem({
   onDelete: () => void
   onSetMain: () => void
 }) {
-  const isLyrics = page.type === "lyrics"
+  const getIconAndStyle = () => {
+    switch (page.type) {
+      case "lyrics": 
+        return {
+          icon: <FileText className="w-4 h-4" />,
+          style: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+        }
+      case "lyrics2":
+        return {
+          icon: <MicVocal className="w-4 h-4" />,
+          style: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
+        }
+      case "chords":
+        return {
+          icon: <Guitar className="w-4 h-4" />,
+          style: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+        }
+    }
+  }
+  
+  const { icon, style } = getIconAndStyle()
 
   return (
     <div
@@ -599,12 +908,8 @@ function PageListItem({
         onClick={onView}
         aria-expanded={isActive}
       >
-        <span className={cn(
-          "shrink-0 flex items-center justify-center w-8 h-8 rounded-lg",
-          isLyrics ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                   : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-        )}>
-          {isLyrics ? <FileText className="w-4 h-4" /> : <Guitar className="w-4 h-4" />}
+        <span className={cn("shrink-0 flex items-center justify-center w-8 h-8 rounded-lg", style)}>
+          {icon}
         </span>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -614,16 +919,23 @@ function PageListItem({
             )}
           </div>
           <span className="text-xs text-muted-foreground">
-            {isLyrics ? "Letra" : "Acordes"}
+            {pageTypeLabels[page.type]}
           </span>
         </div>
       </button>
       <div className="flex items-center gap-0.5 shrink-0">
-        {!page.isMain && (
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-amber-500" onClick={onSetMain} title="Marcar como principal">
-            <Star className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={cn(
+            "w-7 h-7",
+            page.isMain ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+          )} 
+          onClick={onSetMain} 
+          title={page.isMain ? "Remover dos principais" : "Marcar como principal"}
+        >
+          <Star className={cn("w-3.5 h-3.5", page.isMain && "fill-current")} />
+        </Button>
         <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
           <Pencil className="w-3.5 h-3.5" />
         </Button>
