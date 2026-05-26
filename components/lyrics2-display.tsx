@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from "react"
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Lyrics2Content, Lyrics2OrderItem } from "@/lib/data"
@@ -22,9 +22,32 @@ export type Lyrics2DisplayRef = {
 export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2DisplayProps>(
   function Lyrics2DisplayWithRef({ content, fontSize = 14, onOrderUpdate }, ref) {
     // Estado local de expansão baseado em content.order
-    const [expandedState, setExpandedState] = useState<boolean[]>(() => 
+    const [expandedState, setExpandedState] = useState<boolean[]>(() =>
       content.order.map(item => item.expanded)
     )
+
+    // ─── FIX ────────────────────────────────────────────────────────────────
+    // onOrderUpdate NÃO pode ser chamado dentro de um setter de estado (seja
+    // setExpandedState ou qualquer outro), pois isso configura setState de um
+    // componente pai durante o ciclo de render/update do filho — o que gera o
+    // aviso "Cannot update a component while rendering a different component".
+    //
+    // Solução: os handlers apenas atualizam o estado local. Um único useEffect
+    // observa `expandedState` e notifica o pai DEPOIS que o React terminou de
+    // aplicar a atualização, fora do ciclo de render.
+    // ────────────────────────────────────────────────────────────────────────
+    useEffect(() => {
+      if (!onOrderUpdate) return
+      const newOrder = content.order.map((item, i) => ({
+        ...item,
+        expanded: expandedState[i] ?? item.expanded,
+      }))
+      onOrderUpdate(newOrder)
+      // Intencionalmente omitimos onOrderUpdate das deps: a função é recriada
+      // a cada render do pai e incluí-la causaria um loop infinito. O eslint
+      // pode reclamar; o comentário abaixo suprime o aviso com justificativa.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandedState])
 
     // Mapeia títulos de seção para seus conteúdos e cores
     const sectionMap = useMemo(() => {
@@ -35,11 +58,10 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
       return map
     }, [content.sections])
 
-    // Mapeia quais títulos já foram exibidos
+    // Mapeia quais índices são a primeira ocorrência de cada título
     const firstOccurrenceIndices = useMemo(() => {
       const seen = new Set<string>()
       const indices = new Map<number, boolean>()
-      
       content.order.forEach((item, index) => {
         if (!seen.has(item.title)) {
           seen.add(item.title)
@@ -48,42 +70,21 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
           indices.set(index, false)
         }
       })
-      
       return indices
     }, [content.order])
 
+    // Handlers — apenas atualizam estado local; o useEffect acima notifica o pai
     const toggleSection = useCallback((index: number) => {
-      setExpandedState(prev => {
-        const newState = [...prev]
-        newState[index] = !newState[index]
-        
-        if (onOrderUpdate) {
-          const newOrder = content.order.map((item, i) => ({
-            ...item,
-            expanded: newState[i]
-          }))
-          onOrderUpdate(newOrder)
-        }
-        
-        return newState
-      })
-    }, [content.order, onOrderUpdate])
+      setExpandedState(prev => prev.map((v, i) => (i === index ? !v : v)))
+    }, [])
 
     const expandAll = useCallback(() => {
       setExpandedState(prev => prev.map(() => true))
-      if (onOrderUpdate) {
-        const newOrder = content.order.map(item => ({ ...item, expanded: true }))
-        onOrderUpdate(newOrder)
-      }
-    }, [content.order, onOrderUpdate])
+    }, [])
 
     const collapseAll = useCallback(() => {
       setExpandedState(prev => prev.map(() => false))
-      if (onOrderUpdate) {
-        const newOrder = content.order.map(item => ({ ...item, expanded: false }))
-        onOrderUpdate(newOrder)
-      }
-    }, [content.order, onOrderUpdate])
+    }, [])
 
     const resetToDefault = useCallback(() => {
       const seen = new Set<string>()
@@ -94,13 +95,8 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
         }
         return false
       })
-      
       setExpandedState(defaultState)
-      if (onOrderUpdate) {
-        const newOrder = content.order.map((item, i) => ({ ...item, expanded: defaultState[i] }))
-        onOrderUpdate(newOrder)
-      }
-    }, [content.order, onOrderUpdate])
+    }, [content.order])
 
     // Expõe as funções via ref
     useImperativeHandle(ref, () => ({
@@ -118,10 +114,8 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
           const sectionContent = sectionData?.content || ""
           const colors = getSectionColorById(sectionData?.colorId)
           const repetitions = orderItem.repetitions || 1
-          
-          const showContent = isExpanded
-          const showOnlyTitle = !showContent
 
+          const showContent = isExpanded
           const isLastItem = allOrderItems.length - 1 === index
 
           return (
@@ -162,10 +156,10 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
                   <ChevronDown className={cn("w-4 h-4", colors.text)} />
                 )}
               </button>
-              
+
               {showContent && sectionContent && (
                 <div className="px-4 pb-4">
-                  <pre 
+                  <pre
                     className={cn(
                       "whitespace-pre-wrap font-mono leading-relaxed",
                       colors.text
@@ -176,14 +170,6 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
                   </pre>
                 </div>
               )}
-              
-              {/* {showOnlyTitle && !isFirstOccurrence && (
-                <div className="px-4 pb-3">
-                  <span className={cn("text-sm italic", colors.text, "opacity-70")}>
-                    (clique para expandir)
-                  </span>
-                </div>
-              )} */}
             </div>
           )
         })}
@@ -195,10 +181,10 @@ export const Lyrics2DisplayWithRef = forwardRef<Lyrics2DisplayRef, Lyrics2Displa
 // Componente simples sem ref (mantido para compatibilidade)
 export function Lyrics2Display({ content, fontSize = 14, onOrderUpdate }: Lyrics2DisplayProps) {
   return (
-    <Lyrics2DisplayWithRef 
-      content={content} 
-      fontSize={fontSize} 
-      onOrderUpdate={onOrderUpdate} 
+    <Lyrics2DisplayWithRef
+      content={content}
+      fontSize={fontSize}
+      onOrderUpdate={onOrderUpdate}
     />
   )
 }

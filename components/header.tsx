@@ -63,10 +63,6 @@ export function Header() {
                     Adicionar
                   </Button>
                 </Link>
-                <Button variant="ghost" size="icon" className="hidden md:inline-flex text-muted-foreground hover:text-foreground">
-                  <Bell className="w-5 h-5" />
-                  <span className="sr-only">Notificações</span>
-                </Button>
                 
                 {/* User dropdown */}
                 <DropdownMenu>

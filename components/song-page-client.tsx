@@ -320,7 +320,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
         {/* Main content: lyrics + lyrics2 + chords */}
         {!activePage && (
           // <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-[auto_1fr] gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4">
               {/* Chords - appears first on mobile, shrinks to content on desktop */}
               {mainChords && (
                 <div className="last:col-span-full">
@@ -476,7 +476,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {song.pages.length === 0 && (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 Nenhuma página criada ainda.
@@ -511,7 +511,7 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
           {songRepertoires.length === 0 ? (
             <p className="text-sm text-muted-foreground">Esta música não está em nenhum repertório.</p>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {songRepertoires.map((rep) => (
                 <Link key={rep.id} href={`/repertorios/${rep.id}`}>
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
@@ -659,6 +659,8 @@ function ContentCard({
   fontSize?: number
   fitContent?: boolean
 }) {
+  const [showMenu, setShowMenu] = useState(false)
+  
   const getIcon = () => {
     switch (page.type) {
       case "lyrics": return <FileText className="w-4 h-4 text-primary" />
@@ -668,7 +670,7 @@ function ContentCard({
   }
   
   return (
-    <div className={`rounded-xl border border-border bg-card overflow-hidden ${fitContent ? "h-fit" : ""}`}>
+    <div className={`rounded-xl border border-border bg-card overflow-hidden ${fitContent ? "h-fit" : ""} overflow-visible`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
           {getIcon()}
@@ -694,12 +696,49 @@ function ContentCard({
           >
             <Star className={cn("w-3.5 h-3.5", isMain && "fill-current")} />
           </Button>
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
-            <Pencil className="w-3.5 h-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          {/* Menu dropdown */}
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="w-7 h-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowMenu(!showMenu)}
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </Button>
+            
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-card border border-border rounded-lg shadow-lg py-1">
+                  <button
+                    onClick={() => {
+                      onEdit()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                    Editar
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => {
+                      onDelete()
+                      setShowMenu(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
       <pre 
@@ -742,7 +781,7 @@ function Lyrics2Card({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-visible">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
           <MicVocal className="w-4 h-4 text-primary" />
@@ -820,7 +859,7 @@ function Lyrics2Card({
                   <div className="border-t border-border my-1" />
                   <button
                     onClick={() => {
-                      displayRef.current?.resetToDefault()
+                      onEdit()
                       setShowMenu(false)
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
