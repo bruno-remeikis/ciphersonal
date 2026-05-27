@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateText, Output } from "ai"
-import { google } from "@ai-sdk/google"
+import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 
-// Usa o provider do Google diretamente (funciona localmente com GOOGLE_GENERATIVE_AI_API_KEY)
-// gemini-1.5-flash tem boa quota gratuita e é eficiente
-const model = google("gemini-1.5-flash")
+// Groq oferece tier gratuito generoso: 30 RPM, 6000 TPM
+// Llama 3.1 70B é um modelo potente disponível gratuitamente
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
+})
+const model = groq("llama-3.1-70b-versatile")
 
 // Schema para a resposta de letra estruturada
 const lyricsResponseSchema = z.object({
