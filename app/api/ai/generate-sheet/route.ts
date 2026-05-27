@@ -4,7 +4,8 @@ import { google } from "@ai-sdk/google"
 import { z } from "zod"
 
 // Usa o provider do Google diretamente (funciona localmente com GOOGLE_GENERATIVE_AI_API_KEY)
-const model = google("gemini-2.0-flash")
+// gemini-1.5-flash tem boa quota gratuita e é eficiente
+const model = google("gemini-1.5-flash")
 
 // Schema para a resposta de letra estruturada
 const lyricsResponseSchema = z.object({
