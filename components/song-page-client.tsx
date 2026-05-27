@@ -7,13 +7,14 @@ import Link from "next/link"
 import {
   ChevronLeft, ChevronRight, ListMusic, Plus, Pencil, Trash2,
   Star, FileText, Guitar, Check, X, ArrowLeft,
-  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw
+  Music, MicVocal, MoreVertical, Maximize2, Minimize2, RotateCcw,
+  Sparkles, Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import useSWR, { mutate } from "swr"
-import { fetchSongs, fetchRepertoires, swrKeys, updateSong, deleteSong, recordLastSeen } from "@/lib/api"
+import { fetchSongs, fetchRepertoires, swrKeys, updateSong, deleteSong, recordLastSeen, generateSheetWithAI } from "@/lib/api"
 import {
   Song, Page, Repertoire, PageType, pageTypeLabels,
   parseLyrics2Content, stringifyLyrics2Content, Lyrics2Content, Lyrics2OrderItem
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { useSettings } from "@/components/settings-provider"
 import { Lyrics2DisplayWithRef, Lyrics2DisplayRef } from "@/components/lyrics2-display"
 import { Lyrics2Editor } from "@/components/lyrics2-editor"
+import { AIGeneratedBadge } from "@/components/ai-generated-badge"
 
 type SongPageClientProps = {
   song: Song
@@ -54,6 +56,9 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [generatingAI, setGeneratingAI] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [newPageAiGenerated, setNewPageAiGenerated] = useState(false)
 
   // Record last seen
   useEffect(() => {
@@ -145,7 +150,12 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
       ? stringifyLyrics2Content(editingLyrics2Content)
       : editingPage.content
     
-    const pageToSave = { ...editingPage, content: contentToSave }
+    // Atualiza a data de edição (remove visualmente o badge de IA)
+    const pageToSave = { 
+      ...editingPage, 
+      content: contentToSave,
+      updatedAt: new Date()
+    }
     const newPages = song.pages.map((p) => (p.id === editingPage.id ? pageToSave : p))
     setSong((prev) => ({ ...prev, pages: newPages }))
     setEditingPage(null)
@@ -183,13 +193,73 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
       ? stringifyLyrics2Content(newLyrics2Content)
       : newPage.content
     
-    const added: Page = { ...newPage, id, content }
+    const now = new Date()
+    const added: Page = { 
+      ...newPage, 
+      id, 
+      content,
+      aiGenerated: newPageAiGenerated,
+      createdAt: now,
+      updatedAt: now
+    }
     const newPages = [...song.pages, added]
     setSong((prev) => ({ ...prev, pages: newPages }))
     setNewPage({ type: "lyrics" as PageType, title: "", content: "", isMain: false })
     setNewLyrics2Content({ sections: [], order: [] })
+    setNewPageAiGenerated(false)
     setIsAddingPage(false)
     await persistPages(newPages)
+  }
+
+  // Gera conteúdo com IA
+  async function handleGenerateWithAI(type: "lyrics2" | "chords") {
+    if (!song.title || song.artists.length === 0) {
+      setAiError("A música precisa ter título e artista para usar a IA")
+      return
+    }
+
+    setGeneratingAI(true)
+    setAiError(null)
+
+    try {
+      const result = await generateSheetWithAI({
+        songTitle: song.title,
+        artists: song.artists,
+        type
+      })
+
+      if (type === "lyrics2" && result.type === "lyrics2") {
+        // Converte as seções para o formato lyrics2
+        const sections = result.data.sections.map((s, idx) => ({
+          title: s.title,
+          content: s.content,
+          colorId: s.title.toLowerCase().includes("refrão") ? "amber" as const : "blue" as const
+        }))
+        
+        const order = result.data.sections.map(s => ({
+          title: s.title,
+          expanded: true,
+          repetitions: 1
+        }))
+
+        setNewLyrics2Content({ sections, order })
+        setNewPage(p => ({ ...p, type: "lyrics2", title: "Letra (IA)" }))
+        setNewPageAiGenerated(true)
+      } else if (type === "chords" && result.type === "chords") {
+        setNewPage(p => ({ 
+          ...p, 
+          type: "chords", 
+          title: "Cifra (IA)",
+          content: result.data.content 
+        }))
+        setNewPageAiGenerated(true)
+      }
+    } catch (error) {
+      console.error("Error generating with AI:", error)
+      setAiError(error instanceof Error ? error.message : "Erro ao gerar conteúdo com IA")
+    } finally {
+      setGeneratingAI(false)
+    }
   }
 
   async function handleDeleteSong() {
@@ -420,6 +490,57 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
           {/* Add page form */}
           {isAddingPage && (
             <div className="mb-3 p-4 rounded-xl border border-dashed border-primary/50 bg-primary/5 flex flex-col gap-3">
+              {/* Botões para gerar com IA */}
+              <div className="flex flex-col sm:flex-row gap-2 p-3 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800">
+                <div className="flex items-center gap-2 flex-1">
+                  <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                  <span className="text-sm text-violet-700 dark:text-violet-300 font-medium">Preencher com IA</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                    onClick={() => handleGenerateWithAI("lyrics2")}
+                    disabled={generatingAI}
+                  >
+                    {generatingAI ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <MicVocal className="w-3.5 h-3.5" />
+                    )}
+                    Letra
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                    onClick={() => handleGenerateWithAI("chords")}
+                    disabled={generatingAI}
+                  >
+                    {generatingAI ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Guitar className="w-3.5 h-3.5" />
+                    )}
+                    Cifra
+                  </Button>
+                </div>
+              </div>
+              
+              {aiError && (
+                <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                  {aiError}
+                </div>
+              )}
+              
+              {newPageAiGenerated && (
+                <div className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Conteudo gerado por IA - edite conforme necessario</span>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -442,16 +563,24 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
               {/* Editor de conteúdo - muda conforme o tipo */}
               {newPage.type === "lyrics2" ? (
                 <div className="border border-border rounded-lg p-3 bg-card">
-                  <Lyrics2Editor 
+                  <Lyrics2Editor
                     content={newLyrics2Content}
-                    onChange={setNewLyrics2Content}
+                    onChange={(c) => {
+                      setNewLyrics2Content(c)
+                      // Se usuário editar, remove o flag de IA
+                      if (newPageAiGenerated) setNewPageAiGenerated(false)
+                    }}
                   />
                 </div>
               ) : (
                 <textarea
                   placeholder="Conteúdo..."
                   value={newPage.content}
-                  onChange={(e) => setNewPage((p) => ({ ...p, content: e.target.value }))}
+                  onChange={(e) => {
+                    setNewPage((p) => ({ ...p, content: e.target.value }))
+                    // Se usuário editar, remove o flag de IA
+                    if (newPageAiGenerated) setNewPageAiGenerated(false)
+                  }}
                   rows={4}
                   className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none font-mono"
                 />
@@ -461,12 +590,14 @@ export function SongPageClient({ song: initialSong, fromRepertoire }: SongPageCl
                 <Button variant="ghost" size="sm" onClick={() => {
                   setIsAddingPage(false)
                   setNewLyrics2Content({ sections: [], order: [] })
+                  setNewPageAiGenerated(false)
+                  setAiError(null)
                 }}>
                   Cancelar
                 </Button>
-                <Button 
-                  size="sm" 
-                  onClick={handleAddPage} 
+                <Button
+                  size="sm"
+                  onClick={handleAddPage}
                   disabled={!newPage.title.trim() || (newPage.type === "lyrics2" && newLyrics2Content.sections.length === 0)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
@@ -682,6 +813,7 @@ function ContentCard({
               Principal
             </span>
           )}
+          <AIGeneratedBadge page={page} />
         </div>
         <div className="flex items-center gap-1">
           <Button 
@@ -793,6 +925,7 @@ function Lyrics2Card({
               Principal
             </span>
           )}
+          <AIGeneratedBadge page={page} />
         </div>
         <div className="flex items-center gap-1">
           <Button 
@@ -956,6 +1089,7 @@ function PageListItem({
             {page.isMain && (
               <Star className="w-3 h-3 text-amber-500 shrink-0" />
             )}
+            <AIGeneratedBadge page={page} />
           </div>
           <span className="text-xs text-muted-foreground">
             {pageTypeLabels[page.type]}

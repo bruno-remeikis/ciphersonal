@@ -230,3 +230,40 @@ export const swrKeys = {
   artistDetail: (id: string) => [`/api/artists/${id}`] as const,
   repertoireDetail: (id: string) => [`/api/repertoires/${id}`] as const,
 }
+
+// AI Generation types
+export type AIGenerateLyrics2Response = {
+  type: "lyrics2"
+  data: {
+    sections: Array<{ title: string; content: string }>
+  }
+}
+
+export type AIGenerateChordsResponse = {
+  type: "chords"
+  data: {
+    content: string
+  }
+}
+
+export type AIGenerateSheetResponse = AIGenerateLyrics2Response | AIGenerateChordsResponse
+
+// AI Generation function
+export async function generateSheetWithAI(params: {
+  songTitle: string
+  artists: string[]
+  type: "lyrics2" | "chords"
+}): Promise<AIGenerateSheetResponse> {
+  const res = await fetch(`${BASE}/api/ai/generate-sheet`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: "Erro desconhecido" }))
+    throw new Error(error.error || `Failed to generate sheet: ${res.status}`)
+  }
+  
+  return res.json()
+}

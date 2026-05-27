@@ -45,6 +45,9 @@ export type Page = {
   content: string // Para lyrics e chords é string; para lyrics2 é JSON stringified de Lyrics2Content
   lyrics2Data?: Lyrics2Content // Campo dedicado para dados lyrics2 (usado internamente)
   isMain: boolean
+  aiGenerated?: boolean // Indica se foi gerado por IA
+  createdAt?: Date // Data de criação da página
+  updatedAt?: Date // Data da última edição
 }
 
 // Helpers para lyrics2

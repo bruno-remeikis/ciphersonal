@@ -31,6 +31,9 @@ type Page {
   content     String
   lyrics2Data Json?  // Objeto JSON para dados lyrics2 (sections + order com repetitions)
   isMain      Boolean
+  aiGenerated Boolean? // Indica se foi gerado por IA
+  createdAt   DateTime? // Data de criação da página
+  updatedAt   DateTime? // Data da última edição
 }
 
 model Artist {
