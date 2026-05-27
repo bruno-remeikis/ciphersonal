@@ -1,27 +1,36 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText, Output } from "ai"
+import { generateText } from "ai"
 import { createGroq } from "@ai-sdk/groq"
-import { z } from "zod"
 
 // Groq oferece tier gratuito generoso: 30 RPM, 6000 TPM
-// Llama 3.1 70B é um modelo potente disponível gratuitamente
+// Llama 3.3 70B é um modelo potente disponível gratuitamente
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 })
-const model = groq("llama-3.1-70b-versatile")
+const model = groq("llama-3.3-70b-versatile")
 
-// Schema para a resposta de letra estruturada
-const lyricsResponseSchema = z.object({
-  sections: z.array(z.object({
-    title: z.string().describe("Nome da seção (ex: Verso 1, Refrão)"),
-    content: z.string().describe("Conteúdo da seção com quebras de linha")
-  }))
-})
-
-// Schema para a resposta de acordes
-const chordsResponseSchema = z.object({
-  content: z.string().describe("Conteúdo formatado como '[Seção]: acordes, separados, por, vírgula' com quebras de linha entre seções")
-})
+// Função auxiliar para extrair JSON de uma resposta de texto
+function extractJSON(text: string): unknown {
+  // Tenta encontrar um bloco JSON na resposta
+  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || 
+                    text.match(/```\s*([\s\S]*?)\s*```/) ||
+                    text.match(/(\{[\s\S]*\})/)
+  
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[1])
+    } catch {
+      // Se falhar, tenta parsear o texto inteiro
+    }
+  }
+  
+  // Tenta parsear o texto inteiro como JSON
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +52,6 @@ export async function POST(request: NextRequest) {
       // Gerar letra estruturada
       const result = await generateText({
         model,
-        output: Output.object({ schema: lyricsResponseSchema }),
         prompt: `Você é um assistente especializado em letras de músicas brasileiras e internacionais.
 
 Tarefa: Gere a letra da música "${songTitle}" de ${artists.join(", ")}.
@@ -56,13 +64,23 @@ Regras IMPORTANTES:
 5. Mantenha a formatação original da letra com quebras de linha corretas dentro de cada seção
 6. Não adicione informações que não fazem parte da letra (como créditos, comentários, etc)
 
-Retorne a letra organizada em seções.`
+RESPONDA APENAS com um JSON válido no seguinte formato (sem explicações antes ou depois):
+{
+  "sections": [
+    { "title": "Verso 1", "content": "linha 1\\nlinha 2\\nlinha 3" },
+    { "title": "Refrão", "content": "linha 1\\nlinha 2" }
+  ]
+}
+
+Use \\n para quebras de linha dentro do content. Retorne APENAS o JSON, nada mais.`
       })
 
-      if (result.output) {
+      const parsed = extractJSON(result.text) as { sections?: Array<{ title: string; content: string }> } | null
+
+      if (parsed?.sections) {
         return NextResponse.json({
           type: "lyrics2",
-          data: result.output
+          data: parsed
         })
       }
 
@@ -74,7 +92,6 @@ Retorne a letra organizada em seções.`
       // Gerar acordes
       const result = await generateText({
         model,
-        output: Output.object({ schema: chordsResponseSchema }),
         prompt: `Você é um assistente especializado em cifras de músicas brasileiras e internacionais.
 
 Tarefa: Gere a cifra da música "${songTitle}" de ${artists.join(", ")}.
@@ -90,13 +107,20 @@ Regras IMPORTANTES:
 5. Separe cada seção com uma quebra de linha
 6. Não adicione informações extras, apenas os acordes organizados por seção
 
-Retorne a cifra completa no formato especificado.`
+RESPONDA APENAS com um JSON válido no seguinte formato (sem explicações antes ou depois):
+{
+  "content": "[Verso 1]: Am, G, C, F\\n[Refrão]: C, G, Am, F"
+}
+
+Use \\n para quebras de linha. Retorne APENAS o JSON, nada mais.`
       })
 
-      if (result.output) {
+      const parsed = extractJSON(result.text) as { content?: string } | null
+
+      if (parsed?.content) {
         return NextResponse.json({
           type: "chords",
-          data: result.output
+          data: parsed
         })
       }
 
@@ -107,8 +131,9 @@ Retorne a cifra completa no formato especificado.`
     }
   } catch (error) {
     console.error("Error generating sheet:", error)
+    const message = error instanceof Error ? error.message : "Erro ao gerar conteúdo com IA"
     return NextResponse.json(
-      { error: "Erro ao gerar conteúdo com IA" },
+      { error: message },
       { status: 500 }
     )
   }
