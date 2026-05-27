@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 
+// Modelo Gemini via Vercel AI Gateway
+const MODEL = "google/gemini-2.5-flash-preview-05-20"
+
 // Schema para a resposta de letra estruturada
 const lyricsResponseSchema = z.object({
   sections: z.array(z.object({
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (type === "lyrics2") {
       // Gerar letra estruturada
       const result = await generateText({
-        model: "google/gemini-2.0-flash",
+        model: MODEL,
         output: Output.object({ schema: lyricsResponseSchema }),
         prompt: `Você é um assistente especializado em letras de músicas brasileiras e internacionais.
 
@@ -65,7 +68,7 @@ Retorne a letra organizada em seções.`
     } else {
       // Gerar acordes
       const result = await generateText({
-        model: "google/gemini-2.0-flash",
+        model: MODEL,
         output: Output.object({ schema: chordsResponseSchema }),
         prompt: `Você é um assistente especializado em cifras de músicas brasileiras e internacionais.
 
