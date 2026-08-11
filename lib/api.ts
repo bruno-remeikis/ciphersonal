@@ -225,11 +225,11 @@ export type SongSuggestion = {
   genres: string[]
 }
 
-export async function suggestSongsWithAI(exclude: string[]): Promise<SongSuggestion[]> {
+export async function suggestSongsWithAI(exclude: string[], repertoireSongIds: string[]): Promise<SongSuggestion[]> {
   const res = await fetch(`${BASE}/api/ai/suggest-songs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exclude }),
+    body: JSON.stringify({ exclude, repertoireSongIds }),
   })
   if (!res.ok) throw new Error(`Failed to get AI song suggestions: ${res.status}`)
   const data = await res.json()

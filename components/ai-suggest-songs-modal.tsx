@@ -40,7 +40,7 @@ export function AiSuggestSongsModal({
     setLoading(true)
     setError(null)
     try {
-      const results = await suggestSongsWithAI(excludeKeys)
+      const results = await suggestSongsWithAI(excludeKeys, currentSongIds)
       setSuggestions(results.map((s) => ({ ...s, status: "pending" as const })))
       setSeenKeys((prev) => Array.from(new Set([...prev, ...results.map(keyFor)])))
     } catch (err) {
