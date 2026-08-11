@@ -7,9 +7,10 @@ import Link from "next/link"
 import {
   ArrowLeft, Globe, Lock, Pencil, Trash2,
   GripVertical, PlusCircle, X, Check, Music,
-  ListMusic
+  ListMusic, Sparkles
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AiSuggestSongsModal } from "@/components/ai-suggest-songs-modal"
 import {
   DndContext,
   closestCenter,
@@ -43,6 +44,7 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
   const router = useRouter()
   const [songIds, setSongIds] = useState<string[]>(initial.songIds)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showAiDialog, setShowAiDialog] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -125,6 +127,12 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
     const newIds = [...songIds, songId]
     setSongIds(newIds)
     persistSongIds(newIds)
+  }
+
+  // Called when the AI suggestions modal creates and adds a song.
+  // The modal already persists the repertoire's songIds, so we only sync local state here.
+  function handleAiSongAdded(songId: string) {
+    setSongIds((prev) => (prev.includes(songId) ? prev : [...prev, songId]))
   }
 
   async function handleDeleteRepertoire() {
@@ -212,15 +220,26 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
               <Music className="w-4 h-4 text-primary" />
               Músicas ({songIds.length})
             </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs"
-              onClick={() => setShowAddDialog(true)}
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              Adicionar música
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setShowAiDialog(true)}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Sugestões de IA
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setShowAddDialog(true)}
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Adicionar música
+              </Button>
+            </div>
           </div>
 
           {songIds.length === 0 ? (
@@ -321,6 +340,15 @@ export function RepertoirePageClient({ repertoire: initial, initialSongs }: Repe
           </div>
         </div>
       )}
+
+      {/* AI song suggestions modal */}
+      <AiSuggestSongsModal
+        open={showAiDialog}
+        onClose={() => setShowAiDialog(false)}
+        repertoireId={initial.id}
+        currentSongIds={songIds}
+        onSongAdded={handleAiSongAdded}
+      />
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (

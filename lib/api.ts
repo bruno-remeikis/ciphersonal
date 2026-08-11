@@ -218,6 +218,24 @@ export async function deleteRepertoire(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete repertoire: ${res.status}`)
 }
 
+// AI song suggestions
+export type SongSuggestion = {
+  title: string
+  artists: string[]
+  genres: string[]
+}
+
+export async function suggestSongsWithAI(exclude: string[]): Promise<SongSuggestion[]> {
+  const res = await fetch(`${BASE}/api/ai/suggest-songs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exclude }),
+  })
+  if (!res.ok) throw new Error(`Failed to get AI song suggestions: ${res.status}`)
+  const data = await res.json()
+  return data.songs as SongSuggestion[]
+}
+
 // SWR keys
 export const swrKeys = {
   songs: (q?: string) => ["/api/songs", q] as const,
